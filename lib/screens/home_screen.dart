@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../services/portfolio_provider.dart';
 import 'backtest_result_screen.dart';
@@ -10,7 +11,7 @@ class HomeScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Portfolio Backtest'),
+        title: const Text('포트폴리오 백테스트'),
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
       ),
       body: SingleChildScrollView(
@@ -39,7 +40,7 @@ class HomeScreen extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Portfolio Composition',
+                  '포트폴리오 구성',
                   style: Theme.of(context).textTheme.titleLarge,
                 ),
                 const SizedBox(height: 16),
@@ -55,11 +56,11 @@ class HomeScreen extends StatelessWidget {
                 ElevatedButton.icon(
                   onPressed: () => _showAddStockDialog(context, provider),
                   icon: const Icon(Icons.add),
-                  label: const Text('Add Stock'),
+                  label: const Text('종목 추가'),
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Total Weight: ${provider.weights.fold(0.0, (sum, w) => sum + w).toStringAsFixed(2)}',
+                  '총 비중: ${provider.weights.fold(0.0, (sum, w) => sum + w).toStringAsFixed(2)}',
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
                     color: (provider.weights.fold(0.0, (sum, w) => sum + w) - 1.0).abs() < 0.01
@@ -80,7 +81,7 @@ class HomeScreen extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 8),
       child: ListTile(
         title: Text(provider.symbols[index]),
-        subtitle: Text('Weight: ${(provider.weights[index] * 100).toStringAsFixed(1)}%'),
+        subtitle: Text('비중: ${(provider.weights[index] * 100).toStringAsFixed(1)}%'),
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -108,32 +109,32 @@ class HomeScreen extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Backtest Parameters',
+                  '백테스트 설정',
                   style: Theme.of(context).textTheme.titleLarge,
                 ),
                 const SizedBox(height: 16),
                 _buildDatePicker(
                   context,
-                  'Start Date',
+                  '시작일',
                   provider.startDate,
                   (date) => provider.updateStartDate(date),
                 ),
                 const SizedBox(height: 12),
                 _buildDatePicker(
                   context,
-                  'End Date',
+                  '종료일',
                   provider.endDate,
                   (date) => provider.updateEndDate(date),
                 ),
                 const SizedBox(height: 12),
                 _buildNumberField(
-                  'Initial Capital (\$)',
+                  '초기 자본 (원)',
                   provider.initialCapital,
                   (value) => provider.updateInitialCapital(value),
                 ),
                 const SizedBox(height: 12),
                 _buildNumberField(
-                  'DCA Amount (\$/month)',
+                  '적립식 금액 (원/월)',
                   provider.dcaAmount,
                   (value) => provider.updateDcaAmount(value),
                 ),
@@ -171,7 +172,7 @@ class HomeScreen extends StatelessWidget {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text('${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}'),
+            Text(DateFormat('yyyy-MM-dd', 'ko_KR').format(date)),
             const Icon(Icons.calendar_today),
           ],
         ),
@@ -232,7 +233,7 @@ class HomeScreen extends StatelessWidget {
           child: provider.isLoading
               ? const CircularProgressIndicator()
               : const Text(
-                  'Run Backtest',
+                  '백테스트 실행',
                   style: TextStyle(fontSize: 18),
                 ),
         );
@@ -247,19 +248,19 @@ class HomeScreen extends StatelessWidget {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Add Stock'),
+        title: const Text('종목 추가'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(
               controller: symbolController,
-              decoration: const InputDecoration(labelText: 'Symbol'),
+              decoration: const InputDecoration(labelText: '종목'),
               textCapitalization: TextCapitalization.characters,
             ),
             const SizedBox(height: 8),
             TextField(
               controller: weightController,
-              decoration: const InputDecoration(labelText: 'Weight (0-1)'),
+              decoration: const InputDecoration(labelText: '비중 (0-1)'),
               keyboardType: TextInputType.number,
             ),
           ],
@@ -267,7 +268,7 @@ class HomeScreen extends StatelessWidget {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+            child: const Text('취소'),
           ),
           TextButton(
             onPressed: () {
@@ -278,7 +279,7 @@ class HomeScreen extends StatelessWidget {
                 Navigator.pop(context);
               }
             },
-            child: const Text('Add'),
+            child: const Text('추가'),
           ),
         ],
       ),
@@ -296,19 +297,19 @@ class HomeScreen extends StatelessWidget {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Edit Stock'),
+        title: const Text('종목 편집'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(
               controller: symbolController,
-              decoration: const InputDecoration(labelText: 'Symbol'),
+              decoration: const InputDecoration(labelText: '종목'),
               textCapitalization: TextCapitalization.characters,
             ),
             const SizedBox(height: 8),
             TextField(
               controller: weightController,
-              decoration: const InputDecoration(labelText: 'Weight (0-1)'),
+              decoration: const InputDecoration(labelText: '비중 (0-1)'),
               keyboardType: TextInputType.number,
             ),
           ],
@@ -316,7 +317,7 @@ class HomeScreen extends StatelessWidget {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+            child: const Text('취소'),
           ),
           TextButton(
             onPressed: () {
@@ -327,7 +328,7 @@ class HomeScreen extends StatelessWidget {
                 Navigator.pop(context);
               }
             },
-            child: const Text('Update'),
+            child: const Text('수정'),
           ),
         ],
       ),

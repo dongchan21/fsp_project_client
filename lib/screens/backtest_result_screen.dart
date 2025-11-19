@@ -11,14 +11,14 @@ class BacktestResultScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Backtest Results'),
+        title: const Text('백테스트 결과'),
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
       ),
       body: Consumer<PortfolioProvider>(
         builder: (context, provider, child) {
           final result = provider.result;
           if (result == null) {
-            return const Center(child: Text('No results available'));
+            return const Center(child: Text('결과가 없습니다'));
           }
 
           return SingleChildScrollView(
@@ -50,36 +50,36 @@ class BacktestResultScreen extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Performance Summary',
+              '성과 요약',
               style: Theme.of(context).textTheme.titleLarge,
             ),
             const SizedBox(height: 16),
             _buildSummaryRow(
-              'Total Return',
+              '총 수익률',
               '${percentFormat.format(result.totalReturn * 100)}%',
               result.totalReturn >= 0 ? Colors.green : Colors.red,
             ),
             const Divider(),
             _buildSummaryRow(
-              'Annualized Return',
+              '연 환산 수익률',
               '${percentFormat.format(result.annualizedReturn * 100)}%',
               result.annualizedReturn >= 0 ? Colors.green : Colors.red,
             ),
             const Divider(),
             _buildSummaryRow(
-              'Volatility',
+              '변동성',
               '${percentFormat.format(result.volatility * 100)}%',
               Colors.blue,
             ),
             const Divider(),
             _buildSummaryRow(
-              'Sharpe Ratio',
+              '샤프 지수',
               numberFormat.format(result.sharpeRatio),
               Colors.blue,
             ),
             const Divider(),
             _buildSummaryRow(
-              'Max Drawdown',
+              '최대 낙폭',
               '${percentFormat.format(result.maxDrawdown * 100)}%',
               Colors.red,
             ),
@@ -117,7 +117,7 @@ class BacktestResultScreen extends StatelessWidget {
       return const Card(
         child: Padding(
           padding: EdgeInsets.all(16),
-          child: Text('No historical data available'),
+          child: Text('히스토리 데이터가 없습니다'),
         ),
       );
     }
@@ -129,7 +129,7 @@ class BacktestResultScreen extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Portfolio Value Over Time',
+              '포트폴리오 가치 추이',
               style: Theme.of(context).textTheme.titleLarge,
             ),
             const SizedBox(height: 16),
@@ -144,8 +144,10 @@ class BacktestResultScreen extends StatelessWidget {
                         showTitles: true,
                         reservedSize: 60,
                         getTitlesWidget: (value, meta) {
+                          final isNeg = value < 0;
+                          final formatted = NumberFormat.compactCurrency(locale: 'ko_KR', symbol: '₩').format(value.abs());
                           return Text(
-                            '\$${NumberFormat.compact().format(value)}',
+                            isNeg ? '-$formatted' : formatted,
                             style: const TextStyle(fontSize: 10),
                           );
                         },
@@ -215,23 +217,23 @@ class BacktestResultScreen extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Additional Metrics',
+              '추가 지표',
               style: Theme.of(context).textTheme.titleLarge,
             ),
             const SizedBox(height: 16),
             Text(
-              'Total data points: ${result.history.length}',
+              '데이터 포인트 수: ${result.history.length}',
               style: const TextStyle(fontSize: 14),
             ),
             if (result.history.isNotEmpty) ...[
               const SizedBox(height: 8),
               Text(
-                'Start date: ${result.history.first['date']}',
+                '시작일: ${result.history.first['date']}',
                 style: const TextStyle(fontSize: 14),
               ),
               const SizedBox(height: 8),
               Text(
-                'End date: ${result.history.last['date']}',
+                '종료일: ${result.history.last['date']}',
                 style: const TextStyle(fontSize: 14),
               ),
             ],
