@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 class ApiService {
@@ -24,8 +25,8 @@ class ApiService {
       'dcaAmount': dcaAmount,
     });
 
-    print('📤 Sending backtest request to: $url');
-    print('Body: $body');
+    debugPrint('📤 Sending backtest request to: $url');
+    debugPrint('Body: $body');
 
     final response = await http.post(
       url,
@@ -33,11 +34,16 @@ class ApiService {
       body: body,
     );
 
-    print('📥 Response status: ${response.statusCode}');
+    debugPrint('📥 Response status: ${response.statusCode}');
+    final preview = response.body.length > 200
+      ? response.body.substring(0, 200) + '...'
+      : response.body;
+    debugPrint('📥 Response body (preview): $preview');
 
     if (response.statusCode == 200) {
       return jsonDecode(response.body);
     } else {
+      debugPrint('❌ Backtest failed. Body: ${response.body}');
       throw Exception('Failed to run backtest: ${response.body}');
     }
   }
@@ -50,7 +56,7 @@ class ApiService {
     
     final body = jsonEncode({'summary': summary});
 
-    print('📤 Sending insight analysis request to: $url');
+    debugPrint('📤 Sending insight analysis request to: $url');
 
     final response = await http.post(
       url,
@@ -58,11 +64,13 @@ class ApiService {
       body: body,
     );
 
-    print('📥 Response status: ${response.statusCode}');
+    debugPrint('📥 Response status: ${response.statusCode}');
+    debugPrint('📥 Response body: ${response.body}');
 
     if (response.statusCode == 200) {
       return jsonDecode(response.body);
     } else {
+      debugPrint('❌ Insight analyze failed. Body: ${response.body}');
       throw Exception('Failed to analyze insight: ${response.body}');
     }
   }
@@ -81,7 +89,7 @@ class ApiService {
       'portfolio': portfolio,
     });
 
-    print('📤 Sending AI insight request to: $url');
+    debugPrint('📤 Sending AI insight request to: $url');
 
     final response = await http.post(
       url,
@@ -89,11 +97,13 @@ class ApiService {
       body: body,
     );
 
-    print('📥 Response status: ${response.statusCode}');
+    debugPrint('📥 Response status: ${response.statusCode}');
+    debugPrint('📥 Response body: ${response.body}');
 
     if (response.statusCode == 200) {
       return jsonDecode(response.body);
     } else {
+      debugPrint('❌ AI insight failed. Body: ${response.body}');
       throw Exception('Failed to generate AI insight: ${response.body}');
     }
   }

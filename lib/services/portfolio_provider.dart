@@ -95,6 +95,13 @@ class PortfolioProvider with ChangeNotifier {
       );
 
       _result = BacktestResult.fromJson(response);
+      // 수신 응답 로깅 (요약)
+      try {
+        final histLen = _result?.history.length ?? 0;
+        final first = histLen > 0 ? _result!.history.first['date'] : null;
+        final last = histLen > 0 ? _result!.history.last['date'] : null;
+        debugPrint('✅ Parsed Backtest: len=$histLen, first=$first, last=$last, totalReturn=${_result?.totalReturn}, annualized=${_result?.annualizedReturn}');
+      } catch (_) {}
       // 응답 히스토리의 첫 날짜를 실제 시작일로 반영
       try {
         if (_result != null && _result!.history.isNotEmpty) {
@@ -102,6 +109,7 @@ class PortfolioProvider with ChangeNotifier {
           if (firstDate is String && firstDate.isNotEmpty) {
             final parsed = DateTime.parse(firstDate);
             _startDate = parsed;
+            debugPrint('📅 Effective startDate set from response: $_startDate');
           }
         }
       } catch (_) {
