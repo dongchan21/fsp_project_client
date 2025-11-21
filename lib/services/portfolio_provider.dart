@@ -95,6 +95,18 @@ class PortfolioProvider with ChangeNotifier {
       );
 
       _result = BacktestResult.fromJson(response);
+      // 응답 히스토리의 첫 날짜를 실제 시작일로 반영
+      try {
+        if (_result != null && _result!.history.isNotEmpty) {
+          final firstDate = _result!.history.first['date'];
+          if (firstDate is String && firstDate.isNotEmpty) {
+            final parsed = DateTime.parse(firstDate);
+            _startDate = parsed;
+          }
+        }
+      } catch (_) {
+        // 파싱 실패 시 조용히 무시 (UI는 기존 값 유지)
+      }
       _error = null;
     } catch (e) {
       _error = e.toString();
