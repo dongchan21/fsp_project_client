@@ -157,7 +157,8 @@ class HomeScreen extends StatelessWidget {
         final picked = await showDatePicker(
           context: context,
           initialDate: date,
-          firstDate: DateTime(2020),
+          // 최소 선택 가능 날짜 확장 (백테스트 데이터 커버 범위에 맞게 조정)
+          firstDate: DateTime(2000, 1, 1),
           lastDate: DateTime.now(),
         );
         if (picked != null) {
