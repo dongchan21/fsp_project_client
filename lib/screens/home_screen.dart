@@ -15,6 +15,7 @@ class _HomeScreenState extends State<HomeScreen> {
   final List<TextEditingController> _symbolControllers = [];
   final List<TextEditingController> _weightPercentControllers = [];
   final TextEditingController _capitalUnitsController = TextEditingController(); // 만원 단위 입력
+  final TextEditingController _dcaUnitsController = TextEditingController(); // DCA 월 적립 만원 단위 입력
   PortfolioProvider? _provider;
 
   @override
@@ -50,6 +51,16 @@ class _HomeScreenState extends State<HomeScreen> {
         setState(() {});
       }
     });
+    // DCA 초기화 (만원 단위)
+    final dcaUnits = (p.dcaAmount / 10000).round();
+    _dcaUnitsController.text = dcaUnits.toString();
+    _dcaUnitsController.addListener(() {
+      final v = double.tryParse(_dcaUnitsController.text.trim());
+      if (v != null) {
+        p.updateDcaAmount(v * 10000);
+        setState(() {});
+      }
+    });
   }
 
   String _formatKoreanAmount(double amount) {
@@ -73,6 +84,7 @@ class _HomeScreenState extends State<HomeScreen> {
     for (final c in _symbolControllers) { c.dispose(); }
     for (final c in _weightPercentControllers) { c.dispose(); }
     _capitalUnitsController.dispose();
+    _dcaUnitsController.dispose();
     super.dispose();
   }
 
