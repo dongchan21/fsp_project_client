@@ -9,6 +9,7 @@ class PortfolioProvider with ChangeNotifier {
   DateTime _endDate = DateTime(2024, 12, 31);
   double _initialCapital = 10000;
   double _dcaAmount = 100;
+  bool _useDca = false; // 월간 투자 사용 여부
 
   BacktestResult? _result;
   bool _isLoading = false;
@@ -21,6 +22,7 @@ class PortfolioProvider with ChangeNotifier {
   DateTime get endDate => _endDate;
   double get initialCapital => _initialCapital;
   double get dcaAmount => _dcaAmount;
+  bool get useDca => _useDca;
   BacktestResult? get result => _result;
   bool get isLoading => _isLoading;
   String? get error => _error;
@@ -53,6 +55,15 @@ class PortfolioProvider with ChangeNotifier {
 
   void updateDcaAmount(double amount) {
     _dcaAmount = amount;
+    notifyListeners();
+  }
+
+  void toggleUseDca(bool value) {
+    _useDca = value;
+    if (!_useDca) {
+      // 사용 안 할 때 금액 초기화 (선택사항) 유지하고 싶으면 제거
+      _dcaAmount = 0;
+    }
     notifyListeners();
   }
 
@@ -91,7 +102,7 @@ class PortfolioProvider with ChangeNotifier {
         startDate: _startDate,
         endDate: _endDate,
         initialCapital: _initialCapital,
-        dcaAmount: _dcaAmount,
+        dcaAmount: _useDca ? _dcaAmount : 0,
       );
 
       _result = BacktestResult.fromJson(response);
