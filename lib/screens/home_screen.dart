@@ -27,8 +27,8 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
-  void _syncControllers() {
-    final p = _provider;
+  void _syncControllers([PortfolioProvider? override]) {
+    final p = override ?? _provider ?? (mounted ? context.read<PortfolioProvider>() : null);
     if (p == null) return;
     _symbolControllers.clear();
     _weightPercentControllers.clear();
@@ -80,7 +80,10 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('백테스트 설정'),
+        title: Text(
+          'AI 기반 백테스트 플랫폼',
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
       ),
       body: SingleChildScrollView(
@@ -216,8 +219,13 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildInlineRow(PortfolioProvider provider, int index) {
+    // Ensure controllers are in sync with current provider state.
     if (index >= _symbolControllers.length || index >= _weightPercentControllers.length) {
-      _syncControllers();
+      _syncControllers(provider);
+    }
+    if (index >= _symbolControllers.length || index >= _weightPercentControllers.length) {
+      // Still out of range (provider may have changed asynchronously); render nothing safely.
+      return const SizedBox.shrink();
     }
     final symbolCtrl = _symbolControllers[index];
     final weightCtrl = _weightPercentControllers[index];

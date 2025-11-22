@@ -3,8 +3,9 @@ import '../models/portfolio.dart';
 import 'api_service.dart';
 
 class PortfolioProvider with ChangeNotifier {
-  List<String> _symbols = ['AAPL', 'MSFT'];
-  List<double> _weights = [0.5, 0.5];
+  // 기본값: AAPL 100%
+  List<String> _symbols = ['AAPL'];
+  List<double> _weights = [1.0];
   DateTime _startDate = DateTime(2023, 1, 1);
   DateTime _endDate = DateTime(2024, 12, 31);
   double _initialCapital = 10000;

@@ -20,6 +20,8 @@ class MyApp extends StatelessWidget {
         theme: ThemeData(
           colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
           useMaterial3: true,
+          fontFamily: 'Pretendard', // 사용자 제공 폰트 (pubspec에 추가 및 실제 파일 필요)
+          textTheme: Theme.of(context).textTheme.apply(fontFamily: 'Pretendard'),
         ),
         locale: const Locale('ko', 'KR'),
         supportedLocales: const [
