@@ -69,8 +69,15 @@ class PortfolioProvider with ChangeNotifier {
   }
 
   void addStock(String symbol, double weight) {
+    // Add then equalize all weights to sum ≈ 1.0
     _symbols.add(symbol);
     _weights.add(weight);
+    if (_symbols.isNotEmpty) {
+      final equal = 1.0 / _symbols.length;
+      for (int i = 0; i < _weights.length; i++) {
+        _weights[i] = equal;
+      }
+    }
     notifyListeners();
   }
 

@@ -79,6 +79,33 @@ class _HomeScreenState extends State<HomeScreen> {
     return out;
   }
 
+  // Compact: 150,000,000 => 1.5억, 12,000,000 => 1200만원, 1,234,000,000 => 12.34억
+  String _formatKoreanAmountCompact(double amount) {
+    if (amount <= 0) return '0원';
+    final n = amount.round();
+    final eok = n / 100000000.0; // 억 단위 실수
+    if (eok >= 1) {
+      // Show up to 2 decimals but trim trailing zeros
+      String s = eok.toStringAsFixed(eok >= 10 ? 2 : 2); // uniform 2 decimals
+      s = s.replaceAll(RegExp(r'\.0+
+'), '');
+      // Manual trim of trailing zeros and dot
+      while (s.contains('.') && (s.endsWith('0'))) {
+        s = s.substring(0, s.length - 1);
+      }
+      if (s.endsWith('.')) s = s.substring(0, s.length - 1);
+      return s + '억';
+    } else {
+      final man = n / 10000.0; // 만원 단위
+      String s = man.toStringAsFixed(man >= 100 ? 0 : (man >= 10 ? 1 : 2));
+      return s + '만원';
+    }
+  }
+
+  int _diffMonths(DateTime start, DateTime end) {
+    return (end.year - start.year) * 12 + (end.month - start.month) + 1; // inclusive month count
+  }
+
   @override
   void dispose() {
     for (final c in _symbolControllers) { c.dispose(); }
@@ -183,9 +210,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   width: double.infinity,
                   child: ElevatedButton.icon(
                     onPressed: () {
-                      provider.addStock('', 0.0);
-                      _symbolControllers.add(TextEditingController(text: ''));
-                      _weightPercentControllers.add(TextEditingController(text: '0'));
+                      provider.addStock('', 0.0); // triggers equalization
+                      _syncControllers(provider); // refresh controllers to equal weights
                       setState(() {});
                     },
                     icon: const Icon(Icons.add),
@@ -349,6 +375,12 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildCapitalCard() {
     return Consumer<PortfolioProvider>(
       builder: (context, provider, _) {
+        // Sync DCA units controller with provider if mismatch
+        final currentUnits = double.tryParse(_dcaUnitsController.text.trim()) ?? -1;
+        final providerUnits = (provider.dcaAmount / 10000).round();
+        if (provider.useDca && providerUnits != currentUnits) {
+          _dcaUnitsController.text = providerUnits.toString();
+        }
         return Card(
           elevation: 3,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -384,6 +416,17 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
                 const SizedBox(height: 8),
                 Text('총액: ${_formatKoreanAmount(provider.initialCapital)}', style: const TextStyle(fontWeight: FontWeight.w600)),
+                if (provider.useDca) ...[
+                  const SizedBox(height: 4),
+                  Text('월 적립금(원): ${_formatKoreanAmount(provider.dcaAmount)}', style: const TextStyle(fontWeight: FontWeight.w600)),
+                ],
+                const SizedBox(height: 4),
+                Builder(builder: (_) {
+                  final months = _diffMonths(provider.startDate, provider.endDate);
+                  final totalInvested = provider.initialCapital + (provider.useDca ? provider.dcaAmount * months : 0);
+                  final compact = _formatKoreanAmountCompact(totalInvested);
+                  return Text('총 투자 규모 (기간 반영): $compact', style: const TextStyle(fontWeight: FontWeight.bold));
+                }),
                 const SizedBox(height: 18),
                 _buildDcaSection(provider),
               ],
