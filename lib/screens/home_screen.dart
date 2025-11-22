@@ -3,9 +3,18 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../services/portfolio_provider.dart';
 import 'backtest_result_screen.dart';
+import 'package:dotted_border/dotted_border.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  final TextEditingController _multiSymbolController = TextEditingController();
+  final TextEditingController _multiPercentController = TextEditingController(text: '100');
 
   @override
   Widget build(BuildContext context) {
@@ -92,11 +101,16 @@ class HomeScreen extends StatelessWidget {
                     return _buildStockItem(context, provider, index);
                   },
                 ),
-                const SizedBox(height: 8),
-                OutlinedButton.icon(
-                  onPressed: () => _showAddStockDialog(context, provider),
-                  icon: const Icon(Icons.add),
-                  label: const Text('종목 추가'),
+                const SizedBox(height: 12),
+                _buildMultiAddArea(provider),
+                const SizedBox(height: 12),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton.icon(
+                    onPressed: () => _showAddStockDialog(context, provider),
+                    icon: const Icon(Icons.list_alt),
+                    label: const Text('단일 종목 추가'),
+                  ),
                 ),
                 const SizedBox(height: 8),
                 Row(
@@ -133,6 +147,101 @@ class HomeScreen extends StatelessWidget {
       },
     );
   }
+  Widget _buildMultiAddArea(PortfolioProvider provider) {
+    final remaining = (1.0 - provider.weights.fold(0.0, (s, w) => s + w)).clamp(0, 1);
+    return DottedBorder(
+      borderType: BorderType.RRect,
+      radius: const Radius.circular(12),
+      dashPattern: const [6, 4],
+      color: Colors.grey.shade400,
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _multiSymbolController,
+                    decoration: const InputDecoration(
+                      hintText: '예: AAPL, TSLA, MSFT',
+                      border: OutlineInputBorder(),
+                      labelText: '종목 목록',
+                    ),
+                    textCapitalization: TextCapitalization.characters,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                SizedBox(
+                  width: 80,
+                  child: TextField(
+                    controller: _multiPercentController,
+                    decoration: const InputDecoration(
+                      labelText: '비중 %',
+                      border: OutlineInputBorder(),
+                    ),
+                    keyboardType: TextInputType.number,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('남은 비중: ${(remaining * 100).toStringAsFixed(0)}%'),
+                ElevatedButton.icon(
+                  onPressed: () {
+                    final raw = _multiSymbolController.text.trim();
+                    if (raw.isEmpty) return;
+                    final symbols = raw.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
+                    final percent = double.tryParse(_multiPercentController.text.trim());
+                    if (percent == null) {
+                      _showSnack('비중 숫자를 확인하세요');
+                      return;
+                    }
+                    final decimal = percent / 100.0;
+                    if (decimal <= 0) {
+                      _showSnack('비중은 0보다 커야 합니다');
+                      return;
+                    }
+                    if (decimal - remaining > 0.0001) {
+                      _showSnack('남은 비중을 초과했습니다');
+                      return;
+                    }
+                    final ok = provider.addMultipleEqual(symbols, decimal);
+                    if (!ok) {
+                      _showSnack('추가 실패: 총 비중 초과');
+                    } else {
+                      _multiSymbolController.clear();
+                      // 자동으로 남은 비중 100으로 표시 조정
+                      _multiPercentController.text = ( (1.0 - provider.weights.fold(0.0, (s, w) => s + w)) * 100 ).toStringAsFixed(0);
+                      _showSnack('종목 ${symbols.length}개 추가됨');
+                      setState(() {});
+                    }
+                  },
+                  icon: const Icon(Icons.add),
+                  label: const Text('종목 추가'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF6366F1),
+                    foregroundColor: Colors.white,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showSnack(String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(msg), duration: const Duration(seconds: 2)),
+    );
+  }
+
 
   Widget _buildStockItem(BuildContext context, PortfolioProvider provider, int index) {
     return Card(

@@ -73,6 +73,22 @@ class PortfolioProvider with ChangeNotifier {
     notifyListeners();
   }
 
+  // 여러 종목을 동일 비중으로 추가 (totalWeight는 전체에서 차지할 비중 0~1)
+  bool addMultipleEqual(List<String> symbols, double totalWeight) {
+    final currentSum = _weights.fold(0.0, (s, w) => s + w);
+    if (totalWeight <= 0 || symbols.isEmpty) return false;
+    if (currentSum + totalWeight > 1.0001) {
+      return false; // 추가 불가 (총 비중 초과)
+    }
+    final each = totalWeight / symbols.length;
+    for (final s in symbols) {
+      _symbols.add(s.toUpperCase());
+      _weights.add(each);
+    }
+    notifyListeners();
+    return true;
+  }
+
   void removeStock(int index) {
     if (index >= 0 && index < _symbols.length) {
       _symbols.removeAt(index);
