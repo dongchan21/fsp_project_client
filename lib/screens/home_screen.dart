@@ -3,7 +3,6 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../services/portfolio_provider.dart';
 import 'backtest_result_screen.dart';
-import 'package:dotted_border/dotted_border.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -13,8 +12,69 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  final TextEditingController _multiSymbolController = TextEditingController();
-  final TextEditingController _multiPercentController = TextEditingController(text: '100');
+  final List<TextEditingController> _symbolControllers = [];
+  final List<TextEditingController> _weightPercentControllers = [];
+  final TextEditingController _capitalUnitsController = TextEditingController(); // 만원 단위 입력
+  PortfolioProvider? _provider;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _provider = context.read<PortfolioProvider>();
+      _syncControllers();
+      _initCapitalUnits();
+    });
+  }
+
+  void _syncControllers() {
+    final p = _provider;
+    if (p == null) return;
+    _symbolControllers.clear();
+    _weightPercentControllers.clear();
+    for (int i = 0; i < p.symbols.length; i++) {
+      _symbolControllers.add(TextEditingController(text: p.symbols[i]));
+      _weightPercentControllers.add(TextEditingController(text: (p.weights[i] * 100).toStringAsFixed(0)));
+    }
+  }
+
+  void _initCapitalUnits() {
+    final p = _provider;
+    if (p == null) return;
+    final units = (p.initialCapital / 10000).round();
+    _capitalUnitsController.text = units.toString();
+    _capitalUnitsController.addListener(() {
+      final v = double.tryParse(_capitalUnitsController.text.trim());
+      if (v != null) {
+        p.updateInitialCapital(v * 10000);
+        setState(() {});
+      }
+    });
+  }
+
+  String _formatKoreanAmount(double amount) {
+    if (amount <= 0) return '0원';
+    final n = amount.round();
+    final eok = n ~/ 100000000; // 억
+    final man = (n % 100000000) ~/ 10000; // 만원
+    String out = '';
+    if (eok > 0) out += '${eok}억';
+    if (man > 0) {
+      if (out.isNotEmpty) out += ' ';
+      out += '${man}만원';
+    }
+    if (out.isEmpty) out = '0원';
+    if (out.endsWith('억')) out += '원';
+    return out;
+  }
+
+  @override
+  void dispose() {
+    for (final c in _symbolControllers) { c.dispose(); }
+    for (final c in _weightPercentControllers) { c.dispose(); }
+    _capitalUnitsController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -28,68 +88,72 @@ class _HomeScreenState extends State<HomeScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _buildHeaderInfo(context),
+            _buildHeader(),
             const SizedBox(height: 16),
-            _buildPortfolioSection(context),
+            _buildPortfolioCard(),
             const SizedBox(height: 24),
-            _buildParametersSection(context),
+            _buildDateCard(),
+            const SizedBox(height: 24),
+            _buildCapitalCard(),
             const SizedBox(height: 32),
-            _buildRunButton(context),
+            _buildRunButton(),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildHeaderInfo(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _buildHeader() {
+    return Row(
       children: [
-        Row(
-          children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(Icons.bar_chart_rounded, color: Theme.of(context).colorScheme.primary),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('백테스트 설정', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 4),
-                  Text('종목과 투자 조건을 설정하세요', style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.grey[600])),
-                ],
-              ),
-            ),
-          ],
+        Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Icon(Icons.bar_chart_rounded, color: Theme.of(context).colorScheme.primary),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('백테스트 설정', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
+              const SizedBox(height: 4),
+              Text('종목과 투자 조건을 설정하세요', style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.grey[600])),
+            ],
+          ),
         ),
       ],
     );
   }
 
-  Widget _buildPortfolioSection(BuildContext context) {
+  Widget _buildPortfolioCard() {
     return Consumer<PortfolioProvider>(
-      builder: (context, provider, child) {
+      builder: (context, provider, _) {
         return Card(
+          elevation: 3,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           child: Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(18),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   children: [
-                    Icon(Icons.show_chart, color: Theme.of(context).colorScheme.primary),
-                    const SizedBox(width: 8),
-                    Text(
-                      '종목 선택',
-                      style: Theme.of(context).textTheme.titleLarge,
+                    Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Icon(Icons.show_chart, color: Theme.of(context).colorScheme.primary),
                     ),
+                    const SizedBox(width: 10),
+                    Text('종목 선택', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
                   ],
                 ),
                 const SizedBox(height: 16),
@@ -97,41 +161,44 @@ class _HomeScreenState extends State<HomeScreen> {
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
                   itemCount: provider.symbols.length,
-                  itemBuilder: (context, index) {
-                    return _buildStockItem(context, provider, index);
-                  },
+                  itemBuilder: (context, index) => _buildInlineRow(provider, index),
                 ),
                 const SizedBox(height: 12),
-                _buildMultiAddArea(provider),
-                const SizedBox(height: 12),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: TextButton.icon(
-                    onPressed: () => _showAddStockDialog(context, provider),
-                    icon: const Icon(Icons.list_alt),
-                    label: const Text('단일 종목 추가'),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      provider.addStock('', 0.0);
+                      _symbolControllers.add(TextEditingController(text: ''));
+                      _weightPercentControllers.add(TextEditingController(text: '0'));
+                      setState(() {});
+                    },
+                    icon: const Icon(Icons.add),
+                    label: const Text('종목 추가'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF6366F1),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      textStyle: const TextStyle(fontWeight: FontWeight.w600),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
                   ),
                 ),
                 const SizedBox(height: 8),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(
-                      '총 비중',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
-                    ),
+                    Text('총 비중', style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600)),
                     Row(
                       children: [
                         Text(
-                          '${(provider.weights.fold(0.0, (sum, w) => sum + w) * 100).toStringAsFixed(0)}%',
+                          '${(provider.weights.fold(0.0, (s, w) => s + w) * 100).toStringAsFixed(0)}%',
                           style: TextStyle(
                             fontWeight: FontWeight.bold,
-                            color: (provider.weights.fold(0.0, (sum, w) => sum + w) - 1.0).abs() < 0.01
-                                ? Colors.green
-                                : Colors.red,
+                            color: (provider.weights.fold(0.0, (s, w) => s + w) - 1.0).abs() < 0.01 ? Colors.green : Colors.red,
                           ),
                         ),
-                        if ((provider.weights.fold(0.0, (sum, w) => sum + w) - 1.0).abs() < 0.01)
+                        if ((provider.weights.fold(0.0, (s, w) => s + w) - 1.0).abs() < 0.01)
                           const Padding(
                             padding: EdgeInsets.only(left: 6),
                             child: Icon(Icons.check, size: 16, color: Colors.green),
@@ -147,166 +214,110 @@ class _HomeScreenState extends State<HomeScreen> {
       },
     );
   }
-  Widget _buildMultiAddArea(PortfolioProvider provider) {
-    final remaining = (1.0 - provider.weights.fold(0.0, (s, w) => s + w)).clamp(0, 1);
-    return DottedBorder(
-      borderType: BorderType.RRect,
-      radius: const Radius.circular(12),
-      dashPattern: const [6, 4],
-      color: Colors.grey.shade400,
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _multiSymbolController,
-                    decoration: const InputDecoration(
-                      hintText: '예: AAPL, TSLA, MSFT',
-                      border: OutlineInputBorder(),
-                      labelText: '종목 목록',
-                    ),
-                    textCapitalization: TextCapitalization.characters,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                SizedBox(
-                  width: 80,
-                  child: TextField(
-                    controller: _multiPercentController,
-                    decoration: const InputDecoration(
-                      labelText: '비중 %',
-                      border: OutlineInputBorder(),
-                    ),
-                    keyboardType: TextInputType.number,
-                  ),
-                ),
-              ],
+
+  Widget _buildInlineRow(PortfolioProvider provider, int index) {
+    if (index >= _symbolControllers.length || index >= _weightPercentControllers.length) {
+      _syncControllers();
+    }
+    final symbolCtrl = _symbolControllers[index];
+    final weightCtrl = _weightPercentControllers[index];
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        children: [
+          Expanded(
+            flex: 5,
+            child: TextField(
+              controller: symbolCtrl,
+              decoration: InputDecoration(
+                labelText: '티커',
+                border: const OutlineInputBorder(),
+                suffixIcon: symbolCtrl.text.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.close, size: 18),
+                        onPressed: () {
+                          symbolCtrl.clear();
+                          provider.updateStock(index, '', provider.weights[index]);
+                        },
+                      )
+                    : null,
+              ),
+              textCapitalization: TextCapitalization.characters,
+              onChanged: (val) => provider.updateStock(index, val.toUpperCase(), provider.weights[index]),
             ),
-            const SizedBox(height: 10),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text('남은 비중: ${(remaining * 100).toStringAsFixed(0)}%'),
-                ElevatedButton.icon(
-                  onPressed: () {
-                    final raw = _multiSymbolController.text.trim();
-                    if (raw.isEmpty) return;
-                    final symbols = raw.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
-                    final percent = double.tryParse(_multiPercentController.text.trim());
-                    if (percent == null) {
-                      _showSnack('비중 숫자를 확인하세요');
-                      return;
-                    }
-                    final decimal = percent / 100.0;
-                    if (decimal <= 0) {
-                      _showSnack('비중은 0보다 커야 합니다');
-                      return;
-                    }
-                    if (decimal - remaining > 0.0001) {
-                      _showSnack('남은 비중을 초과했습니다');
-                      return;
-                    }
-                    final ok = provider.addMultipleEqual(symbols, decimal);
-                    if (!ok) {
-                      _showSnack('추가 실패: 총 비중 초과');
-                    } else {
-                      _multiSymbolController.clear();
-                      // 자동으로 남은 비중 100으로 표시 조정
-                      _multiPercentController.text = ( (1.0 - provider.weights.fold(0.0, (s, w) => s + w)) * 100 ).toStringAsFixed(0);
-                      _showSnack('종목 ${symbols.length}개 추가됨');
-                      setState(() {});
-                    }
-                  },
-                  icon: const Icon(Icons.add),
-                  label: const Text('종목 추가'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF6366F1),
-                    foregroundColor: Colors.white,
-                  ),
-                ),
-              ],
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            flex: 3,
+            child: TextField(
+              controller: weightCtrl,
+              decoration: const InputDecoration(
+                labelText: '비중 (%)',
+                border: OutlineInputBorder(),
+              ),
+              keyboardType: TextInputType.number,
+              onChanged: (val) {
+                final p = double.tryParse(val);
+                if (p != null) {
+                  provider.updateStock(index, provider.symbols[index], p / 100.0);
+                  setState(() {});
+                }
+              },
             ),
-          ],
-        ),
+          ),
+          const SizedBox(width: 8),
+            IconButton(
+              tooltip: '삭제',
+              icon: const Icon(Icons.delete_outline),
+              onPressed: () {
+                provider.removeStock(index);
+                _syncControllers();
+                setState(() {});
+              },
+            ),
+        ],
       ),
     );
   }
 
-  void _showSnack(String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(msg), duration: const Duration(seconds: 2)),
-    );
-  }
-
-
-  Widget _buildStockItem(BuildContext context, PortfolioProvider provider, int index) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 8),
-      child: ListTile(
-        title: Text(provider.symbols[index]),
-        subtitle: Text('비중: ${(provider.weights[index] * 100).toStringAsFixed(1)}%'),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            IconButton(
-              icon: const Icon(Icons.edit),
-              onPressed: () => _showEditStockDialog(context, provider, index),
-            ),
-            IconButton(
-              icon: const Icon(Icons.delete),
-              onPressed: () => provider.removeStock(index),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildParametersSection(BuildContext context) {
+  Widget _buildDateCard() {
     return Consumer<PortfolioProvider>(
-      builder: (context, provider, child) {
+      builder: (context, provider, _) {
         return Card(
+          elevation: 3,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           child: Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(18),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   children: [
-                    Icon(Icons.calendar_month, color: Theme.of(context).colorScheme.primary),
-                    const SizedBox(width: 8),
-                    Text(
-                      '백테스트 기간',
-                      style: Theme.of(context).textTheme.titleLarge,
+                    Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Icon(Icons.calendar_month, color: Theme.of(context).colorScheme.primary),
+                    ),
+                    const SizedBox(width: 10),
+                    Text('백테스트 기간', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
+                  ],
+                ),
+                const SizedBox(height: 18),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _buildDateBox(label: '시작일', date: provider.startDate, onChanged: provider.updateStartDate),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: _buildDateBox(label: '종료일', date: provider.endDate, onChanged: provider.updateEndDate),
                     ),
                   ],
                 ),
-                const SizedBox(height: 16),
-                _buildDatePicker(
-                  context,
-                  '시작일',
-                  provider.startDate,
-                  (date) => provider.updateStartDate(date),
-                ),
-                const SizedBox(height: 12),
-                _buildDatePicker(
-                  context,
-                  '종료일',
-                  provider.endDate,
-                  (date) => provider.updateEndDate(date),
-                ),
-                const SizedBox(height: 12),
-                _buildNumberField(
-                  '초기 투자금 (원)',
-                  provider.initialCapital,
-                  (value) => provider.updateInitialCapital(value),
-                ),
-                const SizedBox(height: 12),
-                _buildDcaSection(context, provider),
               ],
             ),
           ),
@@ -315,223 +326,96 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildDatePicker(
-    BuildContext context,
-    String label,
-    DateTime date,
-    Function(DateTime) onDateChanged,
-  ) {
-    return InkWell(
+  Widget _buildCapitalCard() {
+    return Consumer<PortfolioProvider>(
+      builder: (context, provider, _) {
+        return Card(
+          elevation: 3,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          child: Padding(
+            padding: const EdgeInsets.all(18),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Icon(Icons.payments_outlined, color: Theme.of(context).colorScheme.primary),
+                    ),
+                    const SizedBox(width: 10),
+                    Text('초기 자본', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
+                  ],
+                ),
+                const SizedBox(height: 18),
+                TextField(
+                  controller: _capitalUnitsController,
+                  decoration: const InputDecoration(
+                    labelText: '초기 투자금 (만원 단위)',
+                    border: OutlineInputBorder(),
+                    hintText: '예: 1 => 1만원, 10000 => 1억원',
+                  ),
+                  keyboardType: TextInputType.number,
+                ),
+                const SizedBox(height: 8),
+                Text('총액: ${_formatKoreanAmount(provider.initialCapital)}', style: const TextStyle(fontWeight: FontWeight.w600)),
+                const SizedBox(height: 18),
+                _buildDcaSection(provider),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildDateBox({required String label, required DateTime date, required Function(DateTime) onChanged}) {
+    return GestureDetector(
       onTap: () async {
         final picked = await showDatePicker(
           context: context,
           initialDate: date,
-          // 최소 선택 가능 날짜 확장 (백테스트 데이터 커버 범위에 맞게 조정)
           firstDate: DateTime(2000, 1, 1),
           lastDate: DateTime.now(),
         );
-        if (picked != null) {
-          onDateChanged(picked);
-        }
+        if (picked != null) onChanged(picked);
       },
-      child: InputDecorator(
-        decoration: InputDecoration(
-          labelText: label,
-          border: const OutlineInputBorder(),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.grey.shade300),
+          color: Colors.white,
+          boxShadow: [
+            BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 6, offset: const Offset(0, 3)),
+          ],
         ),
         child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(DateFormat('yyyy-MM-dd', 'ko_KR').format(date)),
-            const Icon(Icons.calendar_today),
+            Icon(Icons.calendar_today, size: 18, color: Theme.of(context).colorScheme.primary),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(label, style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                  const SizedBox(height: 4),
+                  Text(DateFormat('yyyy년 M월 d일').format(date), style: const TextStyle(fontWeight: FontWeight.w600)),
+                ],
+              ),
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildNumberField(
-    String label,
-    double value,
-    Function(double) onChanged,
-  ) {
-    return TextField(
-      decoration: InputDecoration(
-        labelText: label,
-        border: const OutlineInputBorder(),
-      ),
-      keyboardType: TextInputType.number,
-      controller: TextEditingController(text: value.toString()),
-      onChanged: (text) {
-        final parsed = double.tryParse(text);
-        if (parsed != null) {
-          onChanged(parsed);
-        }
-      },
-    );
-  }
-
-  Widget _buildRunButton(BuildContext context) {
-    return Consumer<PortfolioProvider>(
-      builder: (context, provider, child) {
-        return GestureDetector(
-          onTap: provider.isLoading
-              ? null
-              : () async {
-                  await provider.runBacktest();
-                  if (context.mounted) {
-                    if (provider.error != null) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('오류: ${provider.error}'),
-                          backgroundColor: Colors.red,
-                        ),
-                      );
-                    } else if (provider.result != null) {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const BacktestResultScreen(),
-                        ),
-                      );
-                    }
-                  }
-                },
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            padding: const EdgeInsets.symmetric(vertical: 18),
-            decoration: BoxDecoration(
-              gradient: provider.isLoading
-                  ? LinearGradient(colors: [Colors.grey[400]!, Colors.grey[500]!])
-                  : const LinearGradient(colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)]),
-              borderRadius: BorderRadius.circular(12),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
-                  blurRadius: 8,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            alignment: Alignment.center,
-            child: provider.isLoading
-                ? const SizedBox(
-                    width: 24,
-                    height: 24,
-                    child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3),
-                  )
-                : const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.show_chart, color: Colors.white),
-                      SizedBox(width: 8),
-                      Text(
-                        '백테스트 실행',
-                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
-                      ),
-                    ],
-                  ),
-          ),
-        );
-      },
-    );
-  }
-
-  void _showAddStockDialog(BuildContext context, PortfolioProvider provider) {
-    final symbolController = TextEditingController();
-    final weightController = TextEditingController();
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('종목 추가'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: symbolController,
-              decoration: const InputDecoration(labelText: '종목'),
-              textCapitalization: TextCapitalization.characters,
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: weightController,
-              decoration: const InputDecoration(labelText: '비중 (0-1)'),
-              keyboardType: TextInputType.number,
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('취소'),
-          ),
-          TextButton(
-            onPressed: () {
-              final symbol = symbolController.text.toUpperCase();
-              final weight = double.tryParse(weightController.text);
-              if (symbol.isNotEmpty && weight != null) {
-                provider.addStock(symbol, weight);
-                Navigator.pop(context);
-              }
-            },
-            child: const Text('추가'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showEditStockDialog(
-    BuildContext context,
-    PortfolioProvider provider,
-    int index,
-  ) {
-    final symbolController = TextEditingController(text: provider.symbols[index]);
-    final weightController = TextEditingController(text: provider.weights[index].toString());
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('종목 편집'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: symbolController,
-              decoration: const InputDecoration(labelText: '종목'),
-              textCapitalization: TextCapitalization.characters,
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: weightController,
-              decoration: const InputDecoration(labelText: '비중 (0-1)'),
-              keyboardType: TextInputType.number,
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('취소'),
-          ),
-          TextButton(
-            onPressed: () {
-              final symbol = symbolController.text.toUpperCase();
-              final weight = double.tryParse(weightController.text);
-              if (symbol.isNotEmpty && weight != null) {
-                provider.updateStock(index, symbol, weight);
-                Navigator.pop(context);
-              }
-            },
-            child: const Text('수정'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDcaSection(BuildContext context, PortfolioProvider provider) {
+  Widget _buildDcaSection(PortfolioProvider provider) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -555,15 +439,69 @@ class _HomeScreenState extends State<HomeScreen> {
           child: provider.useDca
               ? Padding(
                   padding: const EdgeInsets.only(top: 8),
-                  child: _buildNumberField(
-                    '적립식 금액 (원/월)',
-                    provider.dcaAmount,
-                    (value) => provider.updateDcaAmount(value),
+                  child: TextField(
+                    decoration: const InputDecoration(
+                      labelText: '적립식 금액 (원/월)',
+                      border: OutlineInputBorder(),
+                    ),
+                    keyboardType: TextInputType.number,
+                    controller: TextEditingController(text: provider.dcaAmount.toStringAsFixed(0)),
+                    onChanged: (v) {
+                      final parsed = double.tryParse(v);
+                      if (parsed != null) provider.updateDcaAmount(parsed);
+                    },
                   ),
                 )
               : const SizedBox.shrink(),
         ),
       ],
+    );
+  }
+
+  Widget _buildRunButton() {
+    return Consumer<PortfolioProvider>(
+      builder: (context, provider, _) {
+        return GestureDetector(
+          onTap: provider.isLoading
+              ? null
+              : () async {
+                  // 빈 티커 검사
+                  if (provider.symbols.any((s) => s.trim().isEmpty)) {
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('빈 티커가 있습니다. 모두 입력하세요.')));
+                    return;
+                  }
+                  await provider.runBacktest();
+                  if (!mounted) return;
+                  if (provider.error != null) {
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('오류: ${provider.error}'), backgroundColor: Colors.red));
+                  } else if (provider.result != null) {
+                    Navigator.push(context, MaterialPageRoute(builder: (_) => const BacktestResultScreen()));
+                  }
+                },
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            padding: const EdgeInsets.symmetric(vertical: 18),
+            decoration: BoxDecoration(
+              gradient: provider.isLoading
+                  ? LinearGradient(colors: [Colors.grey[400]!, Colors.grey[500]!])
+                  : const LinearGradient(colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)]),
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 8, offset: const Offset(0, 4))],
+            ),
+            alignment: Alignment.center,
+            child: provider.isLoading
+                ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3))
+                : const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.show_chart, color: Colors.white),
+                      SizedBox(width: 8),
+                      Text('백테스트 실행', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
+                    ],
+                  ),
+          ),
+        );
+      },
     );
   }
 }
