@@ -15,7 +15,7 @@ class _HomeScreenState extends State<HomeScreen> {
   final List<TextEditingController> _symbolControllers = [];
   final List<TextEditingController> _weightPercentControllers = [];
   final TextEditingController _capitalUnitsController = TextEditingController(); // 만원 단위 입력
-  final TextEditingController _dcaUnitsController = TextEditingController(); // DCA 월 적립 만원 단위 입력
+  final TextEditingController _dcaAmountController = TextEditingController(); // 월 적립식 금액 (원/월) 입력
   PortfolioProvider? _provider;
 
   @override
@@ -40,28 +40,25 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _initCapitalUnits() {
-    final p = _provider;
-    if (p == null) return;
-    final units = (p.initialCapital / 10000).round();
-    _capitalUnitsController.text = units.toString();
-    _capitalUnitsController.addListener(() {
-      final v = double.tryParse(_capitalUnitsController.text.trim());
-      if (v != null) {
-        p.updateInitialCapital(v * 10000);
-        setState(() {});
-      }
-    });
-    // DCA 초기화 (만원 단위)
-    final dcaUnits = (p.dcaAmount / 10000).round();
-    _dcaUnitsController.text = dcaUnits.toString();
-    _dcaUnitsController.addListener(() {
-      final v = double.tryParse(_dcaUnitsController.text.trim());
-      if (v != null) {
-        p.updateDcaAmount(v * 10000);
-        setState(() {});
-      }
-    });
-  }
+  final p = _provider;
+  if (p == null) return;
+  final units = (p.initialCapital / 10000).round();
+  _capitalUnitsController.text = units.toString();
+  _capitalUnitsController.addListener(() {
+    final v = double.tryParse(_capitalUnitsController.text.trim());
+    if (v != null) {
+      p.updateInitialCapital(v * 10000);
+    }
+  });
+  // 월 적립식 금액 초기화 (만원 단위)
+  _dcaAmountController.text = (p.dcaAmount / 10000).toStringAsFixed(0);
+  _dcaAmountController.addListener(() {
+    final v = double.tryParse(_dcaAmountController.text.trim());
+    if (v != null) {
+      p.updateDcaAmount(v * 10000);
+    }
+  });
+}
 
   String _formatKoreanAmount(double amount) {
     if (amount <= 0) return '0원';
@@ -87,8 +84,7 @@ class _HomeScreenState extends State<HomeScreen> {
     if (eok >= 1) {
       // Show up to 2 decimals but trim trailing zeros
       String s = eok.toStringAsFixed(eok >= 10 ? 2 : 2); // uniform 2 decimals
-      s = s.replaceAll(RegExp(r'\.0+
-'), '');
+      s = s.replaceAll(RegExp(r'\.0+'), '');
       // Manual trim of trailing zeros and dot
       while (s.contains('.') && (s.endsWith('0'))) {
         s = s.substring(0, s.length - 1);
@@ -111,7 +107,7 @@ class _HomeScreenState extends State<HomeScreen> {
     for (final c in _symbolControllers) { c.dispose(); }
     for (final c in _weightPercentControllers) { c.dispose(); }
     _capitalUnitsController.dispose();
-    _dcaUnitsController.dispose();
+    _dcaAmountController.dispose();
     super.dispose();
   }
 
@@ -373,69 +369,99 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildCapitalCard() {
-    return Consumer<PortfolioProvider>(
-      builder: (context, provider, _) {
-        // Sync DCA units controller with provider if mismatch
-        final currentUnits = double.tryParse(_dcaUnitsController.text.trim()) ?? -1;
-        final providerUnits = (provider.dcaAmount / 10000).round();
-        if (provider.useDca && providerUnits != currentUnits) {
-          _dcaUnitsController.text = providerUnits.toString();
-        }
-        return Card(
-          elevation: 3,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          child: Padding(
-            padding: const EdgeInsets.all(18),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      width: 36,
-                      height: 36,
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Icon(Icons.payments_outlined, color: Theme.of(context).colorScheme.primary),
+  return Consumer<PortfolioProvider>(
+    builder: (context, provider, _) {
+      return Card(
+        elevation: 3,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: Padding(
+          padding: const EdgeInsets.all(18),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(10),
                     ),
-                    const SizedBox(width: 10),
-                    Text('초기 자본', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
-                  ],
-                ),
-                const SizedBox(height: 18),
-                TextField(
-                  controller: _capitalUnitsController,
-                  decoration: const InputDecoration(
-                    labelText: '초기 투자금 (만원 단위)',
-                    border: OutlineInputBorder(),
-                    hintText: '예: 1 => 1만원, 10000 => 1억원',
+                    child: Icon(Icons.payments_outlined, color: Theme.of(context).colorScheme.primary),
                   ),
-                  keyboardType: TextInputType.number,
-                ),
-                const SizedBox(height: 8),
-                Text('총액: ${_formatKoreanAmount(provider.initialCapital)}', style: const TextStyle(fontWeight: FontWeight.w600)),
-                if (provider.useDca) ...[
-                  const SizedBox(height: 4),
-                  Text('월 적립금(원): ${_formatKoreanAmount(provider.dcaAmount)}', style: const TextStyle(fontWeight: FontWeight.w600)),
+                  const SizedBox(width: 10),
+                  Text('초기 자본', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
                 ],
-                const SizedBox(height: 4),
-                Builder(builder: (_) {
-                  final months = _diffMonths(provider.startDate, provider.endDate);
-                  final totalInvested = provider.initialCapital + (provider.useDca ? provider.dcaAmount * months : 0);
-                  final compact = _formatKoreanAmountCompact(totalInvested);
-                  return Text('총 투자 규모 (기간 반영): $compact', style: const TextStyle(fontWeight: FontWeight.bold));
-                }),
-                const SizedBox(height: 18),
-                _buildDcaSection(provider),
+              ),
+              const SizedBox(height: 18),
+              TextField(
+                controller: _capitalUnitsController,
+                decoration: const InputDecoration(
+                  labelText: '초기 투자금 (만원 단위)',
+                  border: OutlineInputBorder(),
+                  hintText: '예: 1 => 1만원, 10000 => 1억원',
+                ),
+                keyboardType: TextInputType.number,
+              ),
+              const SizedBox(height: 18),
+              CheckboxListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('월 적립 투자(DCA)'),
+                value: provider.useDca,
+                onChanged: (val) => provider.toggleUseDca(val ?? false),
+                controlAffinity: ListTileControlAffinity.leading,
+              ),
+              if (provider.useDca) ...[
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Builder(
+                    builder: (_) {
+                      final currentText = _dcaAmountController.text;
+                      final targetText = (provider.dcaAmount / 10000).toStringAsFixed(0);
+                      if (currentText != targetText) {
+                        WidgetsBinding.instance.addPostFrameCallback((_) {
+                          if (mounted) _dcaAmountController.text = targetText;
+                        });
+                      }
+                      return TextField(
+                        decoration: const InputDecoration(
+                          labelText: '적립식 금액 (만원/월)',
+                          border: OutlineInputBorder(),
+                        ),
+                        keyboardType: TextInputType.number,
+                        controller: _dcaAmountController,
+                        onChanged: (val) {
+                          final v = double.tryParse(val.trim());
+                          if (v != null) {
+                            provider.updateDcaAmount(v * 10000);
+                          }
+                        },
+                      );
+                    },
+                  ),
+                ),
               ],
-            ),
+              const SizedBox(height: 8),
+              Text('총액: ${_formatKoreanAmount(provider.initialCapital)}', style: const TextStyle(fontWeight: FontWeight.w600)),
+              if (provider.useDca) ...[
+                const SizedBox(height: 4),
+                Text('월 적립금: ${_formatKoreanAmount(provider.dcaAmount)}', style: const TextStyle(fontWeight: FontWeight.w600)),
+              ],
+              const SizedBox(height: 4),
+              Builder(builder: (_) {
+                final months = _diffMonths(provider.startDate, provider.endDate);
+                final totalInvested = provider.initialCapital + (provider.useDca ? provider.dcaAmount * months : 0);
+                final compact = _formatKoreanAmountCompact(totalInvested);
+                return Text('총 투자 규모 (기간 반영): $compact', style: const TextStyle(fontWeight: FontWeight.bold));
+              }),
+            ],
           ),
-        );
-      },
-    );
-  }
+        ),
+      );
+    },
+  );
+}
 
   Widget _buildDateBox({required String label, required DateTime date, required Function(DateTime) onChanged}) {
     return GestureDetector(
@@ -479,47 +505,9 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildDcaSection(PortfolioProvider provider) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Icon(Icons.attach_money, color: Theme.of(context).colorScheme.primary),
-            const SizedBox(width: 8),
-            Text('월간 투자 (DCA)', style: Theme.of(context).textTheme.titleMedium),
-          ],
-        ),
-        const SizedBox(height: 8),
-        CheckboxListTile(
-          contentPadding: EdgeInsets.zero,
-          title: const Text('월 적립 투자 사용'),
-          value: provider.useDca,
-          onChanged: (val) => provider.toggleUseDca(val ?? false),
-          controlAffinity: ListTileControlAffinity.leading,
-        ),
-        AnimatedSwitcher(
-          duration: const Duration(milliseconds: 250),
-          child: provider.useDca
-              ? Padding(
-                  padding: const EdgeInsets.only(top: 8),
-                  child: TextField(
-                    decoration: const InputDecoration(
-                      labelText: '적립식 금액 (원/월)',
-                      border: OutlineInputBorder(),
-                    ),
-                    keyboardType: TextInputType.number,
-                    controller: TextEditingController(text: provider.dcaAmount.toStringAsFixed(0)),
-                    onChanged: (v) {
-                      final parsed = double.tryParse(v);
-                      if (parsed != null) provider.updateDcaAmount(parsed);
-                    },
-                  ),
-                )
-              : const SizedBox.shrink(),
-        ),
-      ],
-    );
-  }
+  // 더 이상 사용하지 않음. (DCA UI는 _buildCapitalCard에 직접 구현)
+  return const SizedBox.shrink();
+}
 
   Widget _buildRunButton() {
     return Consumer<PortfolioProvider>(

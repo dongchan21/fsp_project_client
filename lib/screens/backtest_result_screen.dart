@@ -9,32 +9,95 @@ class BacktestResultScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('백테스트 결과'),
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-      ),
-      body: Consumer<PortfolioProvider>(
-        builder: (context, provider, child) {
-          final result = provider.result;
-          if (result == null) {
-            return const Center(child: Text('결과가 없습니다'));
-          }
+    return DefaultTabController(
+      length: 4, // 탭 개수
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('백테스트 결과'),
+          backgroundColor: Theme.of(context).colorScheme.inversePrimary,
+          bottom: const TabBar(
+            isScrollable: true,
+            labelColor: Colors.black,
+            labelStyle: TextStyle(fontWeight: FontWeight.bold),
+            tabs: [
+              Tab(text: '성장 추이'),
+              Tab(text: '종목 비교'),
+              Tab(text: '자산 배분'),
+              Tab(text: 'AI 성과분석'),
+            ],
+          ),
+        ),
+        body: Consumer<PortfolioProvider>(
+          builder: (context, provider, child) {
+            final result = provider.result;
+            if (result == null) {
+              return const Center(child: Text('결과가 없습니다'));
+            }
 
-          return SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+            return TabBarView(
               children: [
-                _buildSummaryCard(context, result),
-                const SizedBox(height: 16),
-                _buildChartCard(context, result),
-                const SizedBox(height: 16),
-                _buildMetricsCard(context, result),
+                _buildGrowthTab(context, result),
+                _buildCompareTab(context, result),
+                _buildAllocationTab(context, result),
+                _buildAiAnalysisTab(context, result),
               ],
-            ),
-          );
-        },
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  // --------------------------
+  // 1) 성장 추이 탭
+  // --------------------------
+  Widget _buildGrowthTab(BuildContext context, dynamic result) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        children: [
+          _buildSummaryCard(context, result),
+          const SizedBox(height: 16),
+          _buildChartCard(context, result),
+          const SizedBox(height: 16),
+          _buildMetricsCard(context, result),
+        ],
+      ),
+    );
+  }
+
+  // --------------------------
+  // 2) 종목 비교 탭 (임시 내용)
+  // --------------------------
+  Widget _buildCompareTab(BuildContext context, dynamic result) {
+    return const Center(
+      child: Text(
+        '종목 비교 기능 준비 중...',
+        style: TextStyle(fontSize: 16),
+      ),
+    );
+  }
+
+  // --------------------------
+  // 3) 자산 배분 탭 (임시 내용)
+  // --------------------------
+  Widget _buildAllocationTab(BuildContext context, dynamic result) {
+    return const Center(
+      child: Text(
+        '자산 배분 차트가 여기에 들어갑니다.',
+        style: TextStyle(fontSize: 16),
+      ),
+    );
+  }
+
+  // --------------------------
+  // 4) AI 성과 분석 탭 (임시)
+  // --------------------------
+  Widget _buildAiAnalysisTab(BuildContext context, dynamic result) {
+    return const Center(
+      child: Text(
+        'AI 기반 성과 분석 제공 예정',
+        style: TextStyle(fontSize: 16),
       ),
     );
   }
