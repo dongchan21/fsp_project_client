@@ -42,6 +42,11 @@ class BacktestResult {
   final double volatility;
   final double sharpeRatio;
   final double maxDrawdown;
+  
+  // [수정됨] 차트 그릴 때 원금 계산을 위해 필요한 필드 추가
+  final double initialCapital;
+  final double dcaAmount;
+  
   final List<Map<String, dynamic>> history;
 
   BacktestResult({
@@ -50,6 +55,8 @@ class BacktestResult {
     required this.volatility,
     required this.sharpeRatio,
     required this.maxDrawdown,
+    required this.initialCapital, // 생성자 추가
+    required this.dcaAmount,      // 생성자 추가
     required this.history,
   });
 
@@ -60,6 +67,11 @@ class BacktestResult {
       volatility: (json['volatility'] as num).toDouble(),
       sharpeRatio: (json['sharpeRatio'] as num).toDouble(),
       maxDrawdown: (json['maxDrawdown'] as num).toDouble(),
+      
+      // [수정됨] JSON에서 값 꺼내오기 (혹시 null이면 0.0 처리)
+      initialCapital: (json['initialCapital'] as num?)?.toDouble() ?? 0.0,
+      dcaAmount: (json['dcaAmount'] as num?)?.toDouble() ?? 0.0,
+      
       history: List<Map<String, dynamic>>.from(json['history'] ?? []),
     );
   }
