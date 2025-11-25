@@ -49,6 +49,7 @@ dependencies:
   # Date and number formatting
   intl: ^0.20.2
   dotted_border: ^2.0.0
+  url_launcher: ^6.3.2
 
 dev_dependencies:
   flutter_test:

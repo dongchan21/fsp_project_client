@@ -1,7 +1,10 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../services/portfolio_provider.dart';
+import '../services/stock_search_service.dart';
 import 'backtest_result_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -221,7 +224,58 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[50],
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.grey[200]!),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.info_outline, size: 16, color: Colors.grey[600]),
+                          const SizedBox(width: 6),
+                          Text(
+                            '티커 입력 가이드',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.grey[700],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        '백테스트를 수행하려면 Yahoo Finance에 등록된 정확한 티커를 입력해야 합니다. (예: 삼성전자 → 005930.KS)',
+                        style: TextStyle(fontSize: 12, color: Colors.grey[600], height: 1.4),
+                      ),
+                      const SizedBox(height: 4),
+                      InkWell(
+                        onTap: () async {
+                          final url = Uri.parse('https://finance.yahoo.com/');
+                          if (await canLaunchUrl(url)) {
+                            await launchUrl(url);
+                          }
+                        },
+                        child: const Text(
+                          'Yahoo Finance에서 티커 검색하기 >',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.blue,
+                            fontWeight: FontWeight.w500,
+                            decoration: TextDecoration.underline,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -274,15 +328,24 @@ class _HomeScreenState extends State<HomeScreen> {
               decoration: InputDecoration(
                 labelText: '티커',
                 border: const OutlineInputBorder(),
-                suffixIcon: symbolCtrl.text.isNotEmpty
-                    ? IconButton(
+                suffixIcon: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.search, color: Colors.blueGrey),
+                      tooltip: '종목 검색',
+                      onPressed: () => _showStockSearchPopup(context, index, provider),
+                    ),
+                    if (symbolCtrl.text.isNotEmpty)
+                      IconButton(
                         icon: const Icon(Icons.close, size: 18),
                         onPressed: () {
                           symbolCtrl.clear();
                           provider.updateStock(index, '', provider.weights[index]);
                         },
-                      )
-                    : null,
+                      ),
+                  ],
+                ),
               ),
               textCapitalization: TextCapitalization.characters,
               onChanged: (val) => provider.updateStock(index, val.toUpperCase(), provider.weights[index]),
@@ -627,6 +690,197 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         );
       },
+    );
+  }
+
+  void _showStockSearchPopup(BuildContext context, int index, PortfolioProvider provider) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return _StockSearchDialog(
+          onSelected: (symbol) {
+            provider.updateStock(index, symbol, provider.weights[index]);
+            _syncControllers(provider);
+            setState(() {});
+          },
+        );
+      },
+    );
+  }
+}
+
+class _StockSearchDialog extends StatefulWidget {
+  final Function(String) onSelected;
+
+  const _StockSearchDialog({required this.onSelected});
+
+  @override
+  State<_StockSearchDialog> createState() => _StockSearchDialogState();
+}
+
+class _StockSearchDialogState extends State<_StockSearchDialog> {
+  final TextEditingController _searchController = TextEditingController();
+  final StockSearchService _searchService = StockSearchService();
+  List<Map<String, String>> _searchResults = [];
+  bool _isLoading = false;
+  Timer? _debounce;
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    _debounce?.cancel();
+    super.dispose();
+  }
+
+  void _onSearchChanged(String query) {
+    if (_debounce?.isActive ?? false) _debounce!.cancel();
+    _debounce = Timer(const Duration(milliseconds: 500), () {
+      _performSearch(query);
+    });
+  }
+
+  Future<void> _performSearch(String query) async {
+    if (query.trim().isEmpty) {
+      setState(() {
+        _searchResults = [];
+        _isLoading = false;
+      });
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    final results = await _searchService.searchStocks(query);
+
+    if (mounted) {
+      setState(() {
+        _searchResults = results;
+        _isLoading = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Container(
+        width: double.maxFinite,
+        constraints: const BoxConstraints(maxWidth: 800, maxHeight: 600), // 너비 확대
+        child: Column(
+          children: [
+            // Header
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    '종목 검색',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+
+            // Search Bar
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  TextField(
+                    controller: _searchController,
+                    autofocus: true,
+                    decoration: InputDecoration(
+                      hintText: '종목명(영문) 또는 티커 검색 (예: Samsung, AAPL)',
+                      prefixIcon: const Icon(Icons.search),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: Colors.grey.shade300),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: Colors.grey.shade300),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide:
+                            const BorderSide(color: Color(0xFF6366F1), width: 2),
+                      ),
+                      filled: true,
+                      fillColor: Colors.grey.shade50,
+                      contentPadding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                    onChanged: _onSearchChanged,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    '* Yahoo Finance 기반이므로 한국어 대신 영문 종목명이나 티커로 검색해주세요.',
+                    style: TextStyle(color: Colors.grey.shade500, fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+
+            // List Area
+            Expanded(
+              child: _isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : _searchResults.isEmpty
+                      ? Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.manage_search,
+                                  size: 64, color: Colors.grey.shade300),
+                              const SizedBox(height: 16),
+                              Text(
+                                _searchController.text.isEmpty
+                                    ? '검색어를 입력하세요'
+                                    : '검색 결과가 없습니다',
+                                style: TextStyle(
+                                    color: Colors.grey.shade500, fontSize: 16),
+                              ),
+                            ],
+                          ),
+                        )
+                      : ListView.separated(
+                          itemCount: _searchResults.length,
+                          separatorBuilder: (context, index) =>
+                              const Divider(height: 1),
+                          itemBuilder: (context, index) {
+                            final item = _searchResults[index];
+                            return ListTile(
+                              title: Text(
+                                item['symbol']!,
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.bold, fontSize: 16),
+                              ),
+                              subtitle: Text(
+                                '${item['name']} • ${item['exchange']}',
+                                style: TextStyle(color: Colors.grey.shade600),
+                              ),
+                              trailing: const Icon(Icons.chevron_right,
+                                  color: Colors.grey),
+                              onTap: () {
+                                widget.onSelected(item['symbol']!);
+                                Navigator.pop(context);
+                              },
+                            );
+                          },
+                        ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
