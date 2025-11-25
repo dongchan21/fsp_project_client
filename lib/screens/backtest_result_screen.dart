@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
 import '../services/portfolio_provider.dart';
+import '../services/ai_service.dart';
 
 class BacktestResultScreen extends StatelessWidget {
   const BacktestResultScreen({super.key});
@@ -169,31 +170,217 @@ class BacktestResultScreen extends StatelessWidget {
   // ------------------------------------------------------------
   Widget _buildAiAnalysisTab(
       BuildContext context, PortfolioProvider provider, dynamic result) {
+    return AiAnalysisTab(provider: provider, result: result);
+  }
+}
+
+class AiAnalysisTab extends StatefulWidget {
+  final PortfolioProvider provider;
+  final dynamic result;
+
+  const AiAnalysisTab({
+    super.key,
+    required this.provider,
+    required this.result,
+  });
+
+  @override
+  State<AiAnalysisTab> createState() => _AiAnalysisTabState();
+}
+
+class _AiAnalysisTabState extends State<AiAnalysisTab> {
+  bool _isLoading = false;
+  Map<String, dynamic>? _aiInsight;
+  String? _error;
+
+  Future<void> _generateInsight() async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
+    try {
+      final body = {
+        'portfolio': {
+          'symbols': widget.provider.symbols,
+          'weights': widget.provider.weights,
+        },
+        'metrics': {
+          'totalReturn': widget.result.totalReturn,
+          'annualizedReturn': widget.result.annualizedReturn,
+          'volatility': widget.result.volatility,
+          'sharpeRatio': widget.result.sharpeRatio,
+          'maxDrawdown': widget.result.maxDrawdown,
+        }
+      };
+
+      final response = await generateAiInsight(body);
+
+      if (response.containsKey('error')) {
+        setState(() {
+          _error = response['error'];
+        });
+      } else {
+        setState(() {
+          _aiInsight = response['aiInsight'];
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _error = e.toString();
+      });
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _buildSummaryCard(result),
-          const SizedBox(height: 20),
-          ElevatedButton(
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text("AI 분석 기능은 작업 중입니다."),
-                  duration: Duration(seconds: 2),
-                ),
-              );
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.black,
-              padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 32),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
+          // 1. 성과 지표
+          _buildPerformanceMetrics(widget.result),
+
+          const SizedBox(height: 40),
+
+          // 2. AI 분석 결과 또는 버튼
+          if (_isLoading)
+            const Center(
+              child: Column(
+                children: [
+                  CircularProgressIndicator(color: Color(0xFF4E7CFE)),
+                  SizedBox(height: 16),
+                  Text("AI가 포트폴리오를 분석 중입니다...",
+                      style: TextStyle(color: Colors.grey)),
+                ],
               ),
+            )
+          else if (_error != null)
+            Center(
+              child: Column(
+                children: [
+                  const Icon(Icons.error_outline, color: Colors.red, size: 48),
+                  const SizedBox(height: 16),
+                  Text("오류 발생: $_error"),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: _generateInsight,
+                    child: const Text("재시도"),
+                  ),
+                ],
+              ),
+            )
+          else if (_aiInsight != null)
+            _buildInsightResult()
+          else
+            _buildGenerateButton(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGenerateButton() {
+    return ElevatedButton(
+      onPressed: _generateInsight,
+      style: ElevatedButton.styleFrom(
+        backgroundColor: const Color(0xFF4E7CFE), // 차트 색상과 통일
+        foregroundColor: Colors.white,
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+        elevation: 2,
+        shadowColor: const Color(0xFF4E7CFE).withOpacity(0.4),
+      ),
+      child: const Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.auto_awesome, size: 20),
+          SizedBox(width: 8),
+          Text(
+            'AI 분석 생성',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInsightResult() {
+    final summary = _aiInsight?['summary'] ?? '';
+    final evaluation = _aiInsight?['evaluation'] ?? '';
+    final analysis = _aiInsight?['analysis'] ?? '';
+    final suggestion = _aiInsight?['suggestion'] ?? '';
+    final investorType = _aiInsight?['investorType'] ?? '';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Row(
+          children: [
+            Icon(Icons.auto_awesome, color: Color(0xFF4E7CFE)),
+            SizedBox(width: 8),
+            Text(
+              'AI 분석 결과',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
             ),
-            child: const Text(
-              'AI 분석 생성',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          ],
+        ),
+        const SizedBox(height: 24),
+        
+        // 요약 & 투자자 유형
+        Row(
+          children: [
+            Expanded(
+              child: _buildInfoBox('포트폴리오 성향', summary, Colors.blue.shade50),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _buildInfoBox('추천 투자자 유형', investorType, Colors.purple.shade50),
+            ),
+          ],
+        ),
+        const SizedBox(height: 24),
+
+        _buildSection('전반적 평가', evaluation),
+        const SizedBox(height: 24),
+        _buildSection('성과 원인 분석', analysis),
+        const SizedBox(height: 24),
+        _buildSection('개선 및 보완 제안', suggestion),
+      ],
+    );
+  }
+
+  Widget _buildInfoBox(String label, String value, Color color) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: Colors.grey[700],
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            value,
+            style: const TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.bold,
+              color: Colors.black87,
             ),
           ),
         ],
@@ -201,52 +388,132 @@ class BacktestResultScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildSummaryCard(dynamic result) {
-    final numberFormat = NumberFormat('#,##0.00');
-    final percentFormat = NumberFormat('#,##0.00');
-
-    return Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      elevation: 0.5,
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              '성과 요약',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-            ),
-            const SizedBox(height: 16),
-            _row('총 수익률', '${percentFormat.format(result.totalReturn * 100)}%',
-                result.totalReturn >= 0 ? Colors.green : Colors.red),
-            _row(
-                '연 환산 수익률',
-                '${percentFormat.format(result.annualizedReturn * 100)}%',
-                result.annualizedReturn >= 0 ? Colors.green : Colors.red),
-            _row('변동성', '${percentFormat.format(result.volatility * 100)}%',
-                Colors.blue),
-            _row('샤프 지수', numberFormat.format(result.sharpeRatio), Colors.blue),
-            _row('최대 낙폭', '${percentFormat.format(result.maxDrawdown * 100)}%',
-                Colors.red),
-          ],
+  Widget _buildSection(String title, String content) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            color: Color(0xFF1A1A1A),
+          ),
         ),
-      ),
+        const SizedBox(height: 8),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.grey.shade200),
+          ),
+          child: Text(
+            content,
+            style: const TextStyle(
+              fontSize: 15,
+              height: 1.6,
+              color: Color(0xFF444444),
+            ),
+          ),
+        ),
+      ],
     );
   }
 
-  Widget _row(String label, String value, Color color) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+  Widget _buildPerformanceMetrics(dynamic result) {
+    final percentFormat = NumberFormat('#,##0.0');
+    final numberFormat = NumberFormat('#,##0.00');
+
+    final totalReturn = result.totalReturn * 100;
+    final annualizedReturn = result.annualizedReturn * 100;
+    final mdd = result.maxDrawdown * 100;
+    final sharpe = result.sharpeRatio;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          '성과 지표',
+          style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+        ),
+        const SizedBox(height: 16),
+        Row(
+          children: [
+            Expanded(
+              child: _buildMetricCard(
+                '총 수익률',
+                '${totalReturn >= 0 ? '+' : ''}${percentFormat.format(totalReturn)}%',
+                totalReturn >= 0 ? Colors.green : Colors.red,
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: _buildMetricCard(
+                '연평균 수익률',
+                '${annualizedReturn >= 0 ? '+' : ''}${percentFormat.format(annualizedReturn)}%',
+                annualizedReturn >= 0 ? Colors.green : Colors.red,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        Row(
+          children: [
+            Expanded(
+              child: _buildMetricCard(
+                '최대 낙폭 (MDD)',
+                '${percentFormat.format(mdd)}%',
+                Colors.red,
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: _buildMetricCard(
+                '샤프 비율',
+                numberFormat.format(sharpe),
+                sharpe >= 1.0
+                    ? Colors.green
+                    : (sharpe >= 0 ? Colors.blue : Colors.red),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMetricCard(String label, String value, Color color) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: const TextStyle(fontSize: 15)),
+          Text(
+            label,
+            style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey[600],
+                fontWeight: FontWeight.w500),
+          ),
+          const SizedBox(height: 8),
           Text(
             value,
             style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
+              fontSize: 24,
+              fontWeight: FontWeight.w700,
               color: color,
             ),
           ),
@@ -273,9 +540,9 @@ class _PortfolioGrowthChartState extends State<PortfolioGrowthChart> {
   final List<String> _periods = ['1년', '3년', '5년', 'MAX'];
   String _selectedPeriod = 'MAX';
 
-  // 색상 정의
-  final Color _lineColor = const Color(0xFF4E7CFE); // 평가금액 (Royal Blue)
-  final Color _principalColor = const Color(0xFFB0B0C0); // 원금 (회색)
+  // [수정 1] 색상 변경 (시인성 개선)
+  final Color _valueColor = const Color(0xFF4E7CFE);     // 평가금액 (Royal Blue)
+  final Color _principalColor = const Color(0xFF00BFA5); // 투자원금 (Teal/Emerald Green) - 잘 보이게 변경
   final Color _fillGradientStart = const Color(0xFF4E7CFE).withOpacity(0.25);
   final Color _fillGradientEnd = const Color(0xFF4E7CFE).withOpacity(0.0);
 
@@ -285,29 +552,23 @@ class _PortfolioGrowthChartState extends State<PortfolioGrowthChart> {
       return _buildEmptyState();
     }
 
-    // ----------------------------------------------------------------------
-    // [New] 데이터 전처리: history에 principal(원금) 필드가 없으므로 직접 계산해서 추가
-    // ----------------------------------------------------------------------
+    // 데이터 전처리 (원금 계산)
     final initialCapital = (widget.result.initialCapital as num? ?? 0).toDouble();
     final dcaAmount = (widget.result.dcaAmount as num? ?? 0).toDouble();
     final originalHistory = widget.result.history as List<dynamic>;
 
-    // 원금 계산된 새로운 리스트 생성
     final List<Map<String, dynamic>> calculatedHistory = [];
     for (int i = 0; i < originalHistory.length; i++) {
       final item = originalHistory[i];
-      // 원금 = 초기투자금 + (월적립금 * (인덱스 + 1))
-      // 예: 1개월차(i=0)에는 초기금 + 1회 적립금
       final double principal = initialCapital + (dcaAmount * (i + 1));
-
       calculatedHistory.add({
         'date': item['date'],
         'value': item['value'],
-        'principal': principal, // 계산된 원금 추가
+        'principal': principal,
       });
     }
 
-    // 1. 기간 필터링 (계산된 리스트 사용)
+    // 1. 기간 필터링
     final filteredHistory = _filterHistory(calculatedHistory);
     if (filteredHistory.isEmpty) return _buildEmptyState();
 
@@ -319,7 +580,6 @@ class _PortfolioGrowthChartState extends State<PortfolioGrowthChart> {
 
     // Y축 범위 계산
     final allValues = [...values, ...principals];
-
     double dataMin = allValues.reduce((a, b) => min(a, b));
     double dataMax = allValues.reduce((a, b) => max(a, b));
 
@@ -423,7 +683,20 @@ class _PortfolioGrowthChartState extends State<PortfolioGrowthChart> {
                 ),
               ],
             ),
-            const SizedBox(height: 32),
+            
+            const SizedBox(height: 16),
+            
+            // [수정 2] 범례 (Legend) 추가
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                _buildLegendItem('평가금액', _valueColor),
+                const SizedBox(width: 12),
+                _buildLegendItem('투자원금', _principalColor),
+              ],
+            ),
+
+            const SizedBox(height: 16),
 
             // --- 차트 영역 ---
             SizedBox(
@@ -435,9 +708,13 @@ class _PortfolioGrowthChartState extends State<PortfolioGrowthChart> {
                   minY: minY,
                   maxY: maxY,
 
-                  // 터치(툴팁) 설정
+                  // [수정 3] 터치 감도 설정 (X축만 맞아도 뜨게 하기)
                   lineTouchData: LineTouchData(
                     handleBuiltInTouches: true,
+                    // touchSpotThreshold를 크게 설정하면 마우스가 Y축으로 멀리 떨어져 있어도 
+                    // X축이 가까운 점을 인식합니다.
+                    touchSpotThreshold: 200, 
+                    
                     touchTooltipData: LineTouchTooltipData(
                       getTooltipColor: (touchedSpot) =>
                           Colors.blueGrey.shade900.withOpacity(0.9),
@@ -461,7 +738,6 @@ class _PortfolioGrowthChartState extends State<PortfolioGrowthChart> {
                           final principal = (data['principal'] as num).toDouble();
                           final value = (data['value'] as num).toDouble();
                           final profit = value - principal;
-                          // 원금이 0이면 수익률 0 처리
                           final returnRate =
                               principal != 0 ? (profit / principal) * 100 : 0.0;
 
@@ -603,14 +879,14 @@ class _PortfolioGrowthChartState extends State<PortfolioGrowthChart> {
                   borderData: FlBorderData(show: false),
 
                   lineBarsData: [
-                    // 1. 원금 그래프 (회색 점선)
+                    // 1. 원금 그래프 (시인성 좋은 색 + 점선)
                     LineChartBarData(
                       spots: filteredHistory.asMap().entries.map((entry) {
                         final val = (entry.value['principal'] as num).toDouble();
                         return FlSpot(entry.key.toDouble(), val);
                       }).toList(),
                       isCurved: false,
-                      color: _principalColor,
+                      color: _principalColor, // [수정] 잘 보이는 색상 적용
                       barWidth: 2,
                       isStrokeCapRound: true,
                       dotData: const FlDotData(show: false),
@@ -624,7 +900,7 @@ class _PortfolioGrowthChartState extends State<PortfolioGrowthChart> {
                         return FlSpot(entry.key.toDouble(), val);
                       }).toList(),
                       isCurved: true,
-                      color: _lineColor,
+                      color: _valueColor,
                       barWidth: 3,
                       isStrokeCapRound: true,
                       dotData: const FlDotData(show: false),
@@ -644,6 +920,31 @@ class _PortfolioGrowthChartState extends State<PortfolioGrowthChart> {
           ],
         ),
       ),
+    );
+  }
+
+  // 범례 아이템 생성 헬퍼
+  Widget _buildLegendItem(String label, Color color) {
+    return Row(
+      children: [
+        Container(
+          width: 10,
+          height: 10,
+          decoration: BoxDecoration(
+            color: color,
+            shape: BoxShape.circle,
+          ),
+        ),
+        const SizedBox(width: 6),
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 12, 
+            color: Colors.black54, 
+            fontWeight: FontWeight.w600
+          ),
+        ),
+      ],
     );
   }
 

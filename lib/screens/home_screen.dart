@@ -516,17 +516,78 @@ class _HomeScreenState extends State<HomeScreen> {
           onTap: provider.isLoading
               ? null
               : () async {
-                  // 빈 티커 검사
+                  // [기존] 0. 빈 티커 검사
                   if (provider.symbols.any((s) => s.trim().isEmpty)) {
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('빈 티커가 있습니다. 모두 입력하세요.')));
+                    ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('빈 티커가 있습니다. 모두 입력하세요.')));
                     return;
                   }
-                  await provider.runBacktest();
-                  if (!mounted) return;
-                  if (provider.error != null) {
-                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('오류: ${provider.error}'), backgroundColor: Colors.red));
-                  } else if (provider.result != null) {
-                    Navigator.push(context, MaterialPageRoute(builder: (_) => const BacktestResultScreen()));
+
+                  // [추가 1] 종료일이 시작일보다 빠른 경우 UI 차단 및 알림
+                  // 날짜의 시/분/초 차이로 인한 오류를 막기 위해 날짜 부분만 비교하거나 compareTo 사용
+                  if (provider.endDate.isBefore(provider.startDate)) {
+                    showDialog(
+                      context: context,
+                      builder: (ctx) => AlertDialog(
+                        title: const Text('날짜 설정 오류'),
+                        content: const Text('종료일은 시작일보다 빠를 수 없습니다.\n기간을 다시 설정해주세요.'),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(ctx),
+                            child: const Text('확인'),
+                          ),
+                        ],
+                      ),
+                    );
+                    return;
+                  }
+
+                  // [추가 2] 백테스트 실행 및 데이터 존재 여부 검증 (Exception 처리)
+                  try {
+                    await provider.runBacktest();
+                    
+                    if (!mounted) return;
+
+                    // Provider가 에러를 세팅한 경우 (예: "OOO 종목의 데이터가 해당 기간에 없습니다")
+                    if (provider.error != null) {
+                      showDialog(
+                        context: context,
+                        builder: (ctx) => AlertDialog(
+                          title: const Text('백테스트 오류'),
+                          content: Text(provider.error!), // Provider에서 설정한 구체적인 에러 메시지 출력
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(ctx),
+                              child: const Text('확인'),
+                            ),
+                          ],
+                        ),
+                      );
+                    } 
+                    // 정상적으로 결과가 나온 경우
+                    else if (provider.result != null) {
+                      Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (_) => const BacktestResultScreen()));
+                    }
+                  } catch (e) {
+                    // Provider 내부에서 unhandled exception이 발생했을 경우 대비
+                    if (!mounted) return;
+                    showDialog(
+                      context: context,
+                      builder: (ctx) => AlertDialog(
+                        title: const Text('데이터 오류'),
+                        content: const Text(
+                            '선택한 기간 내에 데이터가 존재하지 않는 종목이 포함되어 있거나,\n데이터를 불러오는 중 문제가 발생했습니다.'),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(ctx),
+                            child: const Text('확인'),
+                          ),
+                        ],
+                      ),
+                    );
                   }
                 },
           child: AnimatedContainer(
@@ -537,17 +598,30 @@ class _HomeScreenState extends State<HomeScreen> {
                   ? LinearGradient(colors: [Colors.grey[400]!, Colors.grey[500]!])
                   : const LinearGradient(colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)]),
               borderRadius: BorderRadius.circular(12),
-              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 8, offset: const Offset(0, 4))],
+              boxShadow: [
+                BoxShadow(
+                    color: Colors.black.withOpacity(0.1),
+                    blurRadius: 8,
+                    offset: const Offset(0, 4))
+              ],
             ),
             alignment: Alignment.center,
             child: provider.isLoading
-                ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3))
+                ? const SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: CircularProgressIndicator(
+                        color: Colors.white, strokeWidth: 3))
                 : const Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Icon(Icons.show_chart, color: Colors.white),
                       SizedBox(width: 8),
-                      Text('백테스트 실행', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
+                      Text('백테스트 실행',
+                          style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white)),
                     ],
                   ),
           ),
