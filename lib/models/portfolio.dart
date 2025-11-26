@@ -48,6 +48,7 @@ class BacktestResult {
   final double dcaAmount;
   
   final List<Map<String, dynamic>> history;
+  final Map<String, dynamic>? benchmark;
 
   BacktestResult({
     required this.totalReturn,
@@ -58,6 +59,7 @@ class BacktestResult {
     required this.initialCapital, // 생성자 추가
     required this.dcaAmount,      // 생성자 추가
     required this.history,
+    this.benchmark,
   });
 
   factory BacktestResult.fromJson(Map<String, dynamic> json) {
@@ -73,6 +75,7 @@ class BacktestResult {
       dcaAmount: (json['dcaAmount'] as num?)?.toDouble() ?? 0.0,
       
       history: List<Map<String, dynamic>>.from(json['history'] ?? []),
+      benchmark: json['benchmark'] as Map<String, dynamic>?,
     );
   }
 }
