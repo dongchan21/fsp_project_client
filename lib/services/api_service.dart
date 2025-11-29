@@ -5,6 +5,11 @@ import 'package:http/http.dart' as http;
 class ApiService {
   static const String baseUrl = 'http://localhost:8080/api';
 
+  // [Helper] compute용 JSON 파싱 함수 (Top-level 혹은 static이어야 함)
+  static Map<String, dynamic> _parseJson(String source) {
+    return jsonDecode(source) as Map<String, dynamic>;
+  }
+
   // 백테스트 실행
   static Future<Map<String, dynamic>> runBacktest({
     required List<String> symbols,
@@ -41,7 +46,8 @@ class ApiService {
     debugPrint('📥 Response body (preview): $preview');
 
     if (response.statusCode == 200) {
-      return jsonDecode(response.body);
+      // [최적화] 대용량 JSON 파싱을 별도 Isolate(스레드)에서 수행하여 UI 버벅임 방지
+      return await compute(_parseJson, response.body);
     } else {
       debugPrint('❌ Backtest failed. Body: ${response.body}');
       throw Exception('Failed to run backtest: ${response.body}');
@@ -68,7 +74,7 @@ class ApiService {
     debugPrint('📥 Response body: ${response.body}');
 
     if (response.statusCode == 200) {
-      return jsonDecode(response.body);
+      return await compute(_parseJson, response.body);
     } else {
       debugPrint('❌ Insight analyze failed. Body: ${response.body}');
       throw Exception('Failed to analyze insight: ${response.body}');
@@ -101,7 +107,7 @@ class ApiService {
     debugPrint('📥 Response body: ${response.body}');
 
     if (response.statusCode == 200) {
-      return jsonDecode(response.body);
+      return await compute(_parseJson, response.body);
     } else {
       debugPrint('❌ AI insight failed. Body: ${response.body}');
       throw Exception('Failed to generate AI insight: ${response.body}');

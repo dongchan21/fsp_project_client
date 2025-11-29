@@ -2,6 +2,11 @@ import 'package:flutter/foundation.dart';
 import '../models/portfolio.dart';
 import 'api_service.dart';
 
+// [Helper] compute용 모델 파싱 함수 (Top-level)
+BacktestResult _parseBacktestResult(Map<String, dynamic> json) {
+  return BacktestResult.fromJson(json);
+}
+
 class PortfolioProvider with ChangeNotifier {
   // 기본값: AAPL 100%
   List<String> _symbols = ['AAPL'];
@@ -129,7 +134,9 @@ class PortfolioProvider with ChangeNotifier {
         dcaAmount: _useDca ? _dcaAmount : 0,
       );
 
-      _result = BacktestResult.fromJson(response);
+      // [최적화] 모델 파싱도 별도 스레드(Isolate)에서 수행
+      _result = await compute(_parseBacktestResult, response);
+      
       // 수신 응답 로깅 (요약)
       try {
         final histLen = _result?.history.length ?? 0;
