@@ -352,8 +352,158 @@ class _AiAnalysisTabState extends State<AiAnalysisTab> {
         _buildSection('성과 원인 분석', analysis),
         const SizedBox(height: 24),
         _buildSection('개선 및 보완 제안', suggestion),
+        
+        if (_aiInsight?['suggestedPortfolio'] != null) ...[
+          const SizedBox(height: 40),
+          _buildSuggestedPortfolioSection(_aiInsight!['suggestedPortfolio']),
+        ],
       ],
     );
+  }
+
+  Widget _buildSuggestedPortfolioSection(Map<String, dynamic> suggestion) {
+    List<String> symbols = [];
+    List<double> weights = [];
+    String reason = suggestion['reason'] ?? '';
+
+    try {
+      symbols = List<String>.from(suggestion['symbols']);
+      weights = List<double>.from(suggestion['weights'].map((x) => (x as num).toDouble()));
+    } catch (e) {
+      return const SizedBox.shrink(); // 데이터 파싱 실패 시 숨김
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Row(
+          children: [
+            Icon(Icons.pie_chart_outline, color: Color(0xFF4E7CFE)),
+            SizedBox(width: 8),
+            Text(
+              'AI 제안 포트폴리오',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Colors.indigo.shade50.withOpacity(0.5),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.indigo.shade100),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                reason,
+                style: TextStyle(
+                  fontSize: 15,
+                  height: 1.5,
+                  color: Colors.indigo.shade900,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 20),
+              const Divider(),
+              const SizedBox(height: 12),
+              
+              // 종목 비중 리스트
+              ...List.generate(symbols.length, (index) {
+                final weightPercent = (weights[index] * 100).toStringAsFixed(1);
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 6),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            width: 8,
+                            height: 8,
+                            decoration: const BoxDecoration(
+                              color: Color(0xFF4E7CFE),
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Text(
+                            symbols[index],
+                            style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                      Text(
+                        '$weightPercent%',
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF1A1A1A),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }),
+              
+              const SizedBox(height: 24),
+              
+              SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: ElevatedButton(
+                  onPressed: () => _applyAndRunBacktest(symbols, weights),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF4E7CFE),
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: const Text(
+                    '이 포트폴리오로 백테스트 실행',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _applyAndRunBacktest(List<String> symbols, List<double> weights) {
+    final provider = Provider.of<PortfolioProvider>(context, listen: false);
+    
+    // 1. 포트폴리오 업데이트
+    provider.updateSymbols(symbols);
+    provider.updateWeights(weights);
+    
+    // 2. 백테스트 실행
+    // 로딩 표시를 위해 다이얼로그를 띄우거나 할 수 있지만, 
+    // 여기서는 탭 이동 후 Provider의 isLoading 상태를 보여주는 방식을 사용
+    
+    // 탭 이동 (성장 추이 탭으로)
+    DefaultTabController.of(context).animateTo(0);
+    
+    // 백테스트 실행
+    provider.runBacktest().then((_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('AI 제안 포트폴리오가 적용되었습니다.'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    });
   }
 
   Widget _buildInfoBox(String label, String value, Color color) {
@@ -428,11 +578,39 @@ class _AiAnalysisTabState extends State<AiAnalysisTab> {
 
     final totalReturn = result.totalReturn * 100;
     final annualizedReturn = result.annualizedReturn * 100;
-    final mdd = result.maxDrawdown * 100;
+    final mdd = -result.maxDrawdown.abs() * 100;
     final sharpe = result.sharpeRatio;
 
-    // 벤치마크 데이터 (있을 경우)
+    // 벤치마크 데이터 처리
     final bm = result.benchmark;
+    Map<String, double> bmMetrics = {};
+
+    if (bm != null) {
+      // 1. 서버에서 준 값이 있으면 우선 사용
+      if (bm['totalReturn'] != null) bmMetrics['totalReturn'] = (bm['totalReturn'] as num).toDouble();
+      if (bm['annualizedReturn'] != null) bmMetrics['annualizedReturn'] = (bm['annualizedReturn'] as num).toDouble();
+      if (bm['maxDrawdown'] != null) bmMetrics['maxDrawdown'] = -(bm['maxDrawdown'] as num).toDouble().abs();
+      if (bm['sharpeRatio'] != null) bmMetrics['sharpeRatio'] = (bm['sharpeRatio'] as num).toDouble();
+
+      // 2. 값이 하나라도 비어있고 history가 있다면 직접 계산해서 채워넣기
+      if ((!bmMetrics.containsKey('annualizedReturn') || 
+           !bmMetrics.containsKey('maxDrawdown') || 
+           !bmMetrics.containsKey('sharpeRatio')) && 
+           bm['history'] != null) {
+        
+        try {
+          final history = bm['history'] as List<dynamic>;
+          final calculated = _calculateMetrics(history);
+          
+          if (!bmMetrics.containsKey('totalReturn')) bmMetrics['totalReturn'] = calculated['totalReturn']!;
+          if (!bmMetrics.containsKey('annualizedReturn')) bmMetrics['annualizedReturn'] = calculated['annualizedReturn']!;
+          if (!bmMetrics.containsKey('maxDrawdown')) bmMetrics['maxDrawdown'] = calculated['maxDrawdown']!;
+          if (!bmMetrics.containsKey('sharpeRatio')) bmMetrics['sharpeRatio'] = calculated['sharpeRatio']!;
+        } catch (e) {
+          debugPrint('Error calculating benchmark metrics: $e');
+        }
+      }
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -451,8 +629,8 @@ class _AiAnalysisTabState extends State<AiAnalysisTab> {
                 valueColor: totalReturn >= 0 ? Colors.green : Colors.red,
                 description: '투자 기간 동안의 전체 수익률입니다.',
                 myValue: totalReturn,
-                benchmarkValue: bm != null && bm['totalReturn'] != null 
-                    ? (bm['totalReturn'] as num).toDouble() * 100 
+                benchmarkValue: bmMetrics['totalReturn'] != null 
+                    ? bmMetrics['totalReturn']! * 100 
                     : null,
                 unit: '%',
               ),
@@ -465,8 +643,8 @@ class _AiAnalysisTabState extends State<AiAnalysisTab> {
                 valueColor: annualizedReturn >= 0 ? Colors.green : Colors.red,
                 description: '투자가 매년 평균적으로 얼마나 성장했는지를 나타냅니다.',
                 myValue: annualizedReturn,
-                benchmarkValue: bm != null && bm['annualizedReturn'] != null 
-                    ? (bm['annualizedReturn'] as num).toDouble() * 100 
+                benchmarkValue: bmMetrics['annualizedReturn'] != null 
+                    ? bmMetrics['annualizedReturn']! * 100 
                     : null,
                 unit: '%',
               ),
@@ -483,10 +661,11 @@ class _AiAnalysisTabState extends State<AiAnalysisTab> {
                 valueColor: Colors.red,
                 description: '투자 기간 중 고점 대비 가장 많이 하락한 비율입니다. 위험도를 나타냅니다.',
                 myValue: mdd,
-                benchmarkValue: bm != null && bm['maxDrawdown'] != null 
-                    ? (bm['maxDrawdown'] as num).toDouble() * 100 
+                benchmarkValue: bmMetrics['maxDrawdown'] != null 
+                    ? bmMetrics['maxDrawdown']! * 100 
                     : null,
                 unit: '%',
+                higherIsBetter: true,
               ),
             ),
             const SizedBox(width: 16),
@@ -499,15 +678,85 @@ class _AiAnalysisTabState extends State<AiAnalysisTab> {
                     : (sharpe >= 0 ? Colors.blue : Colors.red),
                 description: '위험 대비 수익률을 나타냅니다. 높을수록 투자 효율이 좋습니다.',
                 myValue: sharpe,
-                benchmarkValue: bm != null && bm['sharpeRatio'] != null 
-                    ? (bm['sharpeRatio'] as num).toDouble() 
-                    : null,
+                benchmarkValue: bmMetrics['sharpeRatio'],
               ),
             ),
           ],
         ),
       ],
     );
+  }
+
+  Map<String, double> _calculateMetrics(List<dynamic> history) {
+    if (history.isEmpty) return {};
+
+    final firstValue = (history.first['value'] as num).toDouble();
+    final lastValue = (history.last['value'] as num).toDouble();
+
+    // 1. Total Return
+    final totalReturn = (lastValue - firstValue) / firstValue;
+
+    // 2. Annualized Return (CAGR)
+    final startDate = DateTime.parse(history.first['date']);
+    final endDate = DateTime.parse(history.last['date']);
+    final days = endDate.difference(startDate).inDays;
+    
+    double annualizedReturn = 0.0;
+    if (days > 0 && firstValue > 0 && lastValue > 0) {
+      final years = days / 365.0;
+      annualizedReturn = pow(lastValue / firstValue, 1 / years) - 1;
+    }
+
+    // 3. MDD
+    double maxDrawdown = 0.0;
+    double peak = firstValue;
+    for (var item in history) {
+      final value = (item['value'] as num).toDouble();
+      if (value > peak) peak = value;
+      final drawdown = (value - peak) / peak;
+      if (drawdown < maxDrawdown) maxDrawdown = drawdown;
+    }
+
+    // 4. Sharpe Ratio
+    List<double> returns = [];
+    for (int i = 1; i < history.length; i++) {
+      final prev = (history[i-1]['value'] as num).toDouble();
+      final curr = (history[i]['value'] as num).toDouble();
+      if (prev > 0) {
+        returns.add((curr - prev) / prev);
+      }
+    }
+
+    double sharpeRatio = 0.0;
+    if (returns.length > 1) {
+      final mean = returns.reduce((a, b) => a + b) / returns.length;
+      
+      // Sample Standard Deviation (N-1)
+      final sumSquaredDiff = returns.map((x) => pow(x - mean, 2)).reduce((a, b) => a + b);
+      final stdDev = sqrt(sumSquaredDiff / (returns.length - 1));
+
+      if (stdDev > 0) {
+        // 데이터 주기에 따른 연율화 계수 적용
+        // 평균 간격 계산
+        double avgIntervalDays = days / returns.length;
+        double annualizationFactor = 252; // 기본값: 일간 (Trading Days)
+
+        if (avgIntervalDays >= 28) {
+          annualizationFactor = 12; // 월간
+        } else if (avgIntervalDays >= 6) {
+          annualizationFactor = 52; // 주간
+        }
+        
+        sharpeRatio = (mean / stdDev) * sqrt(annualizationFactor);
+      }
+    }
+
+    return {
+      'totalReturn': totalReturn,
+      'annualizedReturn': annualizedReturn,
+      'maxDrawdown': maxDrawdown,
+      'sharpeRatio': sharpeRatio,
+    };
   }
 
   Widget _buildMetricCard({
@@ -518,8 +767,10 @@ class _AiAnalysisTabState extends State<AiAnalysisTab> {
     double? myValue,
     double? benchmarkValue,
     String unit = '',
+    bool higherIsBetter = true,
   }) {
-    String? tooltipMessage;
+    InlineSpan tooltipContent;
+    
     if (myValue != null && benchmarkValue != null) {
       final diff = myValue - benchmarkValue;
       final diffStr = NumberFormat('#,##0.0').format(diff.abs());
@@ -530,70 +781,80 @@ class _AiAnalysisTabState extends State<AiAnalysisTab> {
       else if (diff < 0) status = '낮습니다';
       else status = '같습니다';
 
-      tooltipMessage = 'S&P 500 ($bmStr$unit) 대비\n$diffStr$unit $status';
+      // 더 좋은지 판단 (higherIsBetter가 true면 높을수록 좋음, false면 낮을수록 좋음)
+      bool isBetter = higherIsBetter ? (diff > 0) : (diff < 0);
+      if (diff == 0) isBetter = true; // 같으면 긍정적으로 표시
+
+      final color = isBetter ? const Color(0xFF00E676) : const Color(0xFFFF5252); // 밝은 녹색 / 밝은 빨강 (다크 툴팁 배경용)
+
+      tooltipContent = TextSpan(
+        style: const TextStyle(color: Colors.white, fontSize: 13, height: 1.5),
+        children: [
+          TextSpan(text: description),
+          const TextSpan(text: '\n\n[S&P 500 대비]\n', style: TextStyle(fontWeight: FontWeight.bold)),
+          TextSpan(text: '$bmStr$unit 보다 '),
+          TextSpan(
+            text: '$diffStr$unit $status',
+            style: TextStyle(color: color, fontWeight: FontWeight.bold),
+          ),
+        ],
+      );
+    } else {
+      tooltipContent = TextSpan(
+        text: description,
+        style: const TextStyle(color: Colors.white, fontSize: 13, height: 1.5),
+      );
     }
 
-    return Tooltip(
-      message: tooltipMessage ?? '',
-      padding: const EdgeInsets.all(12),
-      margin: const EdgeInsets.symmetric(horizontal: 20),
-      showDuration: const Duration(seconds: 0),
-      waitDuration: const Duration(milliseconds: 300),
+    return Container(
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.blueGrey.shade900.withOpacity(0.95),
-        borderRadius: BorderRadius.circular(8),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
-      textStyle: const TextStyle(color: Colors.white, fontSize: 13),
-      child: Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.04),
-              blurRadius: 16,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Text(
-                  label,
-                  style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.grey[600],
-                      fontWeight: FontWeight.w500),
-                ),
-                const SizedBox(width: 6),
-                Tooltip(
-                  message: description,
-                  triggerMode: TooltipTriggerMode.tap,
-                  showDuration: const Duration(seconds: 3),
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.8),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Icon(Icons.help_outline, size: 16, color: Colors.grey[400]),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Text(
-              value,
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.w700,
-                color: valueColor,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text(
+                label,
+                style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey[600],
+                    fontWeight: FontWeight.w500),
               ),
+              const SizedBox(width: 6),
+              Tooltip(
+                richMessage: tooltipContent,
+                triggerMode: TooltipTriggerMode.tap,
+                showDuration: const Duration(seconds: 5),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.blueGrey.shade900.withOpacity(0.95),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(Icons.help_outline, size: 16, color: Colors.grey[400]),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.w700,
+              color: valueColor,
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -688,7 +949,7 @@ class _PortfolioGrowthChartState extends State<PortfolioGrowthChart> {
     // X축 데이터 포인트
     final double lastIndex = (filteredHistory.length - 1).toDouble();
     final double xInterval =
-        lastIndex == 0 ? 1 : (lastIndex / 4).floorToDouble();
+        lastIndex == 0 ? 1 : lastIndex / 4;
 
     return Container(
       decoration: BoxDecoration(
@@ -846,20 +1107,28 @@ class _PortfolioGrowthChartState extends State<PortfolioGrowthChart> {
 
                           final data = filteredHistory[index];
                           final currencyFormat = NumberFormat('#,###');
+                          final principal = (data['principal'] as num).toDouble();
                           
                           String title;
-                          Color color;
+                          Color titleColor;
+                          Color valueColor;
                           double value = spot.y;
+                          double? returnRate;
                           
                           if (spot.bar.color == _principalColor) {
                             title = '투자원금';
-                            color = Colors.white70;
+                            titleColor = Colors.white70;
+                            valueColor = Colors.white70;
                           } else if (spot.bar.color == _benchmarkColor) {
                             title = 'S&P 500';
-                            color = _benchmarkColor;
+                            titleColor = _benchmarkColor;
+                            valueColor = _benchmarkColor;
+                            if (principal > 0) returnRate = ((value - principal) / principal) * 100;
                           } else {
                             title = '평가금액';
-                            color = Colors.white;
+                            titleColor = _valueColor;
+                            valueColor = _valueColor;
+                            if (principal > 0) returnRate = ((value - principal) / principal) * 100;
                           }
 
                           final dateStr = data['date'];
@@ -870,18 +1139,32 @@ class _PortfolioGrowthChartState extends State<PortfolioGrowthChart> {
                             TextSpan(
                               text: '$title: ',
                               style: TextStyle(
-                                  color: color == _benchmarkColor ? color : Colors.white70,
+                                  color: titleColor,
                                   fontSize: 12,
                                   fontWeight: FontWeight.normal),
                             ),
                             TextSpan(
-                              text: '${currencyFormat.format(value.round())}원\n',
+                              text: '${currencyFormat.format(value.round())}원',
                               style: TextStyle(
-                                  color: color == _benchmarkColor ? color : Colors.white,
+                                  color: valueColor,
                                   fontSize: 13,
                                   fontWeight: FontWeight.bold),
                             ),
                           ];
+
+                          if (returnRate != null) {
+                            final sign = returnRate >= 0 ? '+' : '';
+                            final rateColor = returnRate >= 0 ? const Color(0xFF00E676) : const Color(0xFFFF5252);
+                            children.add(TextSpan(
+                              text: ' ($sign${returnRate.toStringAsFixed(1)}%)',
+                              style: TextStyle(
+                                color: rateColor,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ));
+                          }
+                          children.add(const TextSpan(text: '\n'));
 
                           if (!dateShown) {
                             dateShown = true;

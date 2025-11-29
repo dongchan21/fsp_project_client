@@ -3,11 +3,11 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
 import 'screens/home_screen.dart';
 import 'services/portfolio_provider.dart';
-
-void main() {
-  runApp(const MyApp());
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+void main() async {
+  await dotenv.load(fileName: "assets/.env");
+  runApp(MyApp());
 }
-
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 

@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:flutter_dotenv/flutter_dotenv.dart'; // 환경 변수 관리 패키지
 
 /// Gemini 기반 AI 인사이트 생성 서비스
 Future<Map<String, dynamic>> generateAiInsight(Map<String, dynamic> body) async {
@@ -54,14 +55,41 @@ $symbolWeightText
   "evaluation": "전반적 평가 (100자 내외)",
   "analysis": "성과의 원인 분석 (200자 내외)",
   "suggestion": "개선 및 보완 제안 (200자 내외)",
-  "investorType": "추천 투자자 유형 (예: 위험 감수형, 안정추구형 등)"
+  "investorType": "추천 투자자 유형 (예: 위험 감수형, 안정추구형 등)",
+  "suggestedPortfolio": {
+    "symbols": ["(종목1)", "(종목2)", "(종목3)"],
+    "weights": [0.5, 0.3, 0.2],
+    "reason": "제안 이유 (100자 내외)"
+  }
 }
+
+제안 포트폴리오 작성 시 주의사항:
+1. 위 JSON 예시의 종목은 형식일 뿐입니다. 절대 그대로 베끼지 마세요.
+2. 반드시 사용자의 현재 포트폴리오($symbolWeightText)를 바탕으로, 분석 결과에 따라 비중을 조절하거나 필요한 자산(채권, 금, 배당주 등)을 추가하여 재구성하세요.
+3. weights의 합은 반드시 1.0이 되어야 합니다.
+4. symbols는 실제 미국 주식 티커(대문자)로 작성하세요.
+5. **중요**: 현재 포트폴리오의 성과가 이미 안정적이고 우수하다면(예: 샤프지수 1.0 이상, MDD -25% 이내 등), 굳이 억지로 변경을 제안하지 말고 `suggestedPortfolio` 필드를 아예 생략(null)하세요. "이미 훌륭한 포트폴리오입니다"라고 평가하는 것이 더 좋습니다.
 """;
 
   // ---------- Gemini API 호출 ----------
-  final apiKey = 'AIzaSyCaS0EJ_mKJzqrilCMj10wEzc_f6FG3j7Q'; // ✅ API 키 입력
+  final apiKey = dotenv.env['GEMINI_API_KEY'] ?? ''; // ✅ 환경 변수에서 API 키 로드
+  if (apiKey.isEmpty) {
+    throw Exception('API Key가 설정되지 않았습니다. .env 파일을 확인하세요.');
+  }
+
   final url = Uri.parse(
       'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=$apiKey');
+
+  print('Request body:');
+  print(jsonEncode({
+    "contents": [
+      {
+        "parts": [
+          {"text": prompt}
+        ]
+      }
+    ]
+  }));
 
   try {
     final response = await http.post(
@@ -77,6 +105,9 @@ $symbolWeightText
         ]
       }),
     );
+
+    print('Response status: ${response.statusCode}');
+    print('Response body: ${response.body}');
 
     if (response.statusCode != 200) {
       return {
@@ -105,6 +136,7 @@ $symbolWeightText
     try {
       parsed = jsonDecode(cleanText);
     } catch (e) {
+      print('JSON parsing error: $e');
       parsed = {"rawText": aiText};
     }
 
@@ -113,6 +145,7 @@ $symbolWeightText
       "promptUsed": prompt,
     };
   } catch (e) {
+    print('API 호출 중 오류 발생: $e');
     return {
       "error": "API 호출 중 오류 발생: $e"
     };
