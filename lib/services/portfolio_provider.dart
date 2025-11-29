@@ -12,7 +12,7 @@ class PortfolioProvider with ChangeNotifier {
   List<String> _symbols = ['AAPL'];
   List<double> _weights = [1.0];
   DateTime _startDate = DateTime(2023, 1, 1);
-  DateTime _endDate = DateTime(2024, 12, 31);
+  DateTime _endDate = DateTime.now();
   double _initialCapital = 10000;
   double _dcaAmount = 100;
   bool _useDca = false; // 월간 투자 사용 여부

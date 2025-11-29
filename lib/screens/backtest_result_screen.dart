@@ -4,7 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
 import '../services/portfolio_provider.dart';
-import '../services/ai_service.dart';
+import '../services/api_service.dart';
 
 class BacktestResultScreen extends StatelessWidget {
   const BacktestResultScreen({super.key});
@@ -191,6 +191,7 @@ class AiAnalysisTab extends StatefulWidget {
 class _AiAnalysisTabState extends State<AiAnalysisTab> {
   bool _isLoading = false;
   Map<String, dynamic>? _aiInsight;
+  Map<String, dynamic>? _score;
   String? _error;
 
   Future<void> _generateInsight() async {
@@ -200,21 +201,41 @@ class _AiAnalysisTabState extends State<AiAnalysisTab> {
     });
 
     try {
-      final body = {
-        'portfolio': {
-          'symbols': widget.provider.symbols,
-          'weights': widget.provider.weights,
-        },
-        'metrics': {
-          'totalReturn': widget.result.totalReturn,
-          'annualizedReturn': widget.result.annualizedReturn,
-          'volatility': widget.result.volatility,
-          'sharpeRatio': widget.result.sharpeRatio,
-          'maxDrawdown': widget.result.maxDrawdown,
-        }
+      // 1. 성과 지표 요약 데이터 준비
+      final summary = {
+        'totalReturn': widget.result.totalReturn,
+        'annualizedReturn': widget.result.annualizedReturn,
+        'volatility': widget.result.volatility,
+        'sharpeRatio': widget.result.sharpeRatio,
+        'maxDrawdown': widget.result.maxDrawdown,
+        // 필요한 경우 추가 필드 (예: annualReturn 등 서버가 기대하는 키 이름 확인 필요)
+        // 서버의 insight_service.dart는 'annualReturn', 'totalReturn', 'mdd', 'sharpe'를 사용함
+        'annualReturn': widget.result.annualizedReturn,
+        'mdd': widget.result.maxDrawdown,
+        'sharpe': widget.result.sharpeRatio,
       };
 
-      final response = await generateAiInsight(body);
+      // 2. 서버에 분석 요청 (점수 및 텍스트 생성)
+      final analysisResult = await ApiService.analyzeInsight(summary: summary);
+      
+      if (analysisResult.containsKey('error')) {
+        throw Exception(analysisResult['error']);
+      }
+
+      final score = analysisResult['score'];
+      final analysis = analysisResult['analysis'];
+
+      // 3. AI 인사이트 생성 요청
+      final portfolio = {
+        'symbols': widget.provider.symbols,
+        'weights': widget.provider.weights,
+      };
+
+      final response = await ApiService.generateAiInsight(
+        score: score,
+        analysis: analysis,
+        portfolio: portfolio,
+      );
 
       if (response.containsKey('error')) {
         setState(() {
@@ -223,6 +244,7 @@ class _AiAnalysisTabState extends State<AiAnalysisTab> {
       } else {
         setState(() {
           _aiInsight = response['aiInsight'];
+          _score = score;
         });
       }
     } catch (e) {
@@ -332,6 +354,11 @@ class _AiAnalysisTabState extends State<AiAnalysisTab> {
           ],
         ),
         const SizedBox(height: 24),
+
+        if (_score != null) ...[
+          _buildScoreCard(_score!),
+          const SizedBox(height: 24),
+        ],
         
         // 요약 & 투자자 유형
         Row(
@@ -357,6 +384,152 @@ class _AiAnalysisTabState extends State<AiAnalysisTab> {
           const SizedBox(height: 40),
           _buildSuggestedPortfolioSection(_aiInsight!['suggestedPortfolio']),
         ],
+      ],
+    );
+  }
+
+  Widget _buildScoreCard(Map<String, dynamic> score) {
+    final total = score['total'] ?? 0;
+    final grade = score['grade'] ?? 'N/A';
+    final profit = score['profit'] ?? 0;
+    final risk = score['risk'] ?? 0;
+    final efficiency = score['efficiency'] ?? 0;
+
+    Color gradeColor;
+    if (grade == 'A') {
+      gradeColor = Colors.green;
+    } else if (grade == 'B') {
+      gradeColor = Colors.blue;
+    } else if (grade == 'C') {
+      gradeColor = Colors.orange;
+    } else {
+      gradeColor = Colors.red;
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    '포트폴리오 종합 점수',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.grey,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        '$total',
+                        style: const TextStyle(
+                          fontSize: 48,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF1A1A1A),
+                          height: 1.0,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      const Text(
+                        '/ 100',
+                        style: TextStyle(
+                          fontSize: 16,
+                          color: Colors.grey,
+                          fontWeight: FontWeight.w500,
+                          height: 1.8,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              Container(
+                width: 60,
+                height: 60,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: gradeColor.withOpacity(0.1),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: gradeColor, width: 2),
+                ),
+                child: Text(
+                  grade,
+                  style: TextStyle(
+                    fontSize: 32,
+                    fontWeight: FontWeight.bold,
+                    color: gradeColor,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          const Divider(),
+          const SizedBox(height: 24),
+          _buildScoreBar('수익성', profit, 30, Colors.redAccent),
+          const SizedBox(height: 16),
+          _buildScoreBar('리스크 관리', risk, 35, Colors.blueAccent),
+          const SizedBox(height: 16),
+          _buildScoreBar('효율성', efficiency, 35, Colors.green),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildScoreBar(String label, int value, int max, Color color) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              label,
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF444444),
+              ),
+            ),
+            Text(
+              '$value / $max',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+                color: color,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(4),
+          child: LinearProgressIndicator(
+            value: value / max,
+            backgroundColor: Colors.grey[200],
+            valueColor: AlwaysStoppedAnimation<Color>(color),
+            minHeight: 8,
+          ),
+        ),
       ],
     );
   }

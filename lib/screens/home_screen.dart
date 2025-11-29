@@ -423,6 +423,21 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ],
                 ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Icon(Icons.info_outline, size: 14, color: Colors.orange[700]),
+                    const SizedBox(width: 6),
+                    Text(
+                      '정확한 분석 결과를 위해 1년 이상의 기간 설정을 권장합니다.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.orange[800],
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
               ],
             ),
           ),

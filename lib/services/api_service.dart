@@ -83,7 +83,7 @@ class ApiService {
 
   // AI 인사이트 생성
   static Future<Map<String, dynamic>> generateAiInsight({
-    required int score,
+    required Map<String, dynamic> score,
     required Map<String, dynamic> analysis,
     required Map<String, dynamic> portfolio,
   }) async {
