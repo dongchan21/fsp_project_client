@@ -4,6 +4,7 @@ import '../services/portfolio_provider.dart';
 import '../widgets/backtest/portfolio_growth_chart.dart';
 import '../widgets/backtest/allocation_chart.dart';
 import '../widgets/backtest/ai_analysis_tab.dart';
+import '../widgets/backtest/annual_returns_chart.dart';
 
 class BacktestResultScreen extends StatelessWidget {
   const BacktestResultScreen({super.key});
@@ -60,7 +61,12 @@ class BacktestResultScreen extends StatelessWidget {
   Widget _buildGrowthTab(dynamic result) {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
-      child: PortfolioGrowthChart(result: result),
+      child: Column(
+        children: [
+          PortfolioGrowthChart(result: result),
+          AnnualReturnsChart(annualReturns: result.annualReturns),
+        ],
+      ),
     );
   }
 
