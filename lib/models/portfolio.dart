@@ -81,4 +81,19 @@ class BacktestResult {
       benchmark: json['benchmark'] as Map<String, dynamic>?,
     );
   }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'totalReturn': totalReturn,
+      'annualizedReturn': annualizedReturn,
+      'volatility': volatility,
+      'sharpeRatio': sharpeRatio,
+      'maxDrawdown': maxDrawdown,
+      'initialCapital': initialCapital,
+      'dcaAmount': dcaAmount,
+      'history': history,
+      'annualReturns': annualReturns,
+      'benchmark': benchmark,
+    };
+  }
 }

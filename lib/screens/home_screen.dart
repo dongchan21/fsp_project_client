@@ -5,7 +5,10 @@ import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../services/portfolio_provider.dart';
 import '../services/stock_search_service.dart';
+import '../providers/auth_provider.dart';
 import 'backtest_result_screen.dart';
+import 'login_screen.dart';
+import 'board/board_list_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -20,6 +23,7 @@ class _HomeScreenState extends State<HomeScreen> {
   final TextEditingController _capitalUnitsController = TextEditingController(); // 만원 단위 입력
   final TextEditingController _dcaAmountController = TextEditingController(); // 월 적립식 금액 (원/월) 입력
   PortfolioProvider? _provider;
+  bool _showBacktestResult = false;
 
   @override
   void initState() {
@@ -28,8 +32,10 @@ class _HomeScreenState extends State<HomeScreen> {
       _provider = context.read<PortfolioProvider>();
       _syncControllers();
       _initCapitalUnits();
+      context.read<AuthProvider>().checkLoginStatus();
     });
   }
+
 
   void _syncControllers([PortfolioProvider? override]) {
     final p = override ?? _provider ?? (mounted ? context.read<PortfolioProvider>() : null);
@@ -116,33 +122,106 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          'AI 기반 백테스트 플랫폼',
-          style: const TextStyle(fontWeight: FontWeight.bold),
+    final authProvider = Provider.of<AuthProvider>(context);
+
+    return DefaultTabController(
+      length: 2,
+      child: Scaffold(
+        appBar: AppBar(
+          title: Row(
+            children: [
+              const Text(
+                'AI 기반 백테스트 플랫폼',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              const Spacer(),
+              Expanded(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 200),
+                  child: const TabBar(
+                    tabs: [
+                      Tab(text: '백테스트'),
+                      Tab(text: '공유 게시판'),
+                    ],
+                    labelColor: Colors.black87,
+                    unselectedLabelColor: Colors.grey,
+                    indicatorSize: TabBarIndicatorSize.label,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          backgroundColor: Theme.of(context).colorScheme.inversePrimary,
+          actions: [
+            if (authProvider.isLoggedIn) ...[
+              Center(
+                child: Text(
+                  '${authProvider.user?['nickname'] ?? '사용자'}님',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ),
+              const SizedBox(width: 10),
+              IconButton(
+                icon: const Icon(Icons.logout),
+                tooltip: '로그아웃',
+                onPressed: () {
+                  authProvider.logout();
+                },
+              ),
+            ] else
+              TextButton.icon(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const LoginScreen()),
+                  );
+                },
+                icon: const Icon(Icons.login),
+                label: const Text('로그인'),
+              ),
+            const SizedBox(width: 8),
+          ],
         ),
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+        body: TabBarView(
           children: [
-            _buildHeader(),
-            const SizedBox(height: 16),
-            _buildPortfolioCard(),
-            const SizedBox(height: 24),
-            _buildDateCard(),
-            const SizedBox(height: 24),
-            _buildCapitalCard(),
-            const SizedBox(height: 32),
-            _buildRunButton(),
+            _buildBacktestTab(),
+            const BoardListScreen(showAppBar: false),
           ],
         ),
       ),
     );
   }
+
+  Widget _buildBacktestTab() {
+    if (_showBacktestResult) {
+      return BacktestResultScreen(
+        onBack: () {
+          setState(() {
+            _showBacktestResult = false;
+          });
+        },
+      );
+    }
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _buildHeader(),
+          const SizedBox(height: 16),
+          _buildPortfolioCard(),
+          const SizedBox(height: 24),
+          _buildDateCard(),
+          const SizedBox(height: 24),
+          _buildCapitalCard(),
+          const SizedBox(height: 32),
+          _buildRunButton(),
+        ],
+      ),
+    );
+  }
+
 
   Widget _buildHeader() {
     return Row(
@@ -644,10 +723,9 @@ class _HomeScreenState extends State<HomeScreen> {
                     } 
                     // 정상적으로 결과가 나온 경우
                     else if (provider.result != null) {
-                      Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                              builder: (_) => const BacktestResultScreen()));
+                      setState(() {
+                        _showBacktestResult = true;
+                      });
                     }
                   } catch (e) {
                     // Provider 내부에서 unhandled exception이 발생했을 경우 대비

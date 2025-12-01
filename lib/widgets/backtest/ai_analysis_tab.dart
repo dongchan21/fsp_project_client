@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../services/portfolio_provider.dart';
 import '../../services/api_service.dart';
+import '../../providers/auth_provider.dart';
+import '../../screens/board/create_post_screen.dart';
+import '../../screens/login_screen.dart';
 import 'ai_analysis/performance_metrics_grid.dart';
 import 'ai_analysis/analysis_loading_view.dart';
 import 'ai_analysis/analysis_error_view.dart';
@@ -110,13 +113,52 @@ class _AiAnalysisTabState extends State<AiAnalysisTab> {
               error: _error!,
               onRetry: _generateInsight,
             )
-          else if (_aiInsight != null)
+          else if (_aiInsight != null) ...[
             AiInsightResultView(
               aiInsight: _aiInsight!,
               score: _score,
               onApplyPortfolio: _applyAndRunBacktest,
-            )
-          else
+            ),
+            const SizedBox(height: 32),
+            SizedBox(
+              height: 56,
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  final authProvider = Provider.of<AuthProvider>(context, listen: false);
+                  if (!authProvider.isLoggedIn) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('로그인이 필요한 서비스입니다.')),
+                    );
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const LoginScreen()),
+                    );
+                    return;
+                  }
+
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => CreatePostScreen(
+                        backtestResult: widget.result,
+                        aiScore: _score,
+                        aiInsight: _aiInsight,
+                      ),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.share),
+                label: const Text('포트폴리오 공유하기', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blue,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+            ),
+          ] else
             GenerateAnalysisButton(onPressed: _generateInsight),
         ],
       ),
