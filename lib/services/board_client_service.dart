@@ -54,4 +54,22 @@ class BoardClientService {
       throw Exception(jsonDecode(response.body)['error'] ?? 'Failed to create post');
     }
   }
+
+  static Future<void> deletePost(int id) async {
+    final token = await _storage.read(key: 'jwt_token');
+    if (token == null) throw Exception('Not logged in');
+
+    final url = _baseUrl.endsWith('/') ? '$_baseUrl$id' : '$_baseUrl/$id';
+
+    final response = await http.delete(
+      Uri.parse(url),
+      headers: {
+        'Authorization': 'Bearer $token',
+      },
+    );
+
+    if (response.statusCode != 200) {
+      throw Exception(jsonDecode(response.body)['error'] ?? 'Failed to delete post');
+    }
+  }
 }

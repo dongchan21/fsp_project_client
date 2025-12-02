@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../../services/board_client_service.dart';
 import '../../services/portfolio_provider.dart';
+import '../../providers/auth_provider.dart';
 
 class PostDetailScreen extends StatefulWidget {
   final int postId;
@@ -23,8 +24,50 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     _postFuture = BoardClientService.getPost(widget.postId);
   }
 
+  Future<void> _deletePost() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('게시글 삭제'),
+        content: const Text('정말로 이 게시글을 삭제하시겠습니까?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('취소'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('삭제'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      try {
+        await BoardClientService.deletePost(widget.postId);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('게시글이 삭제되었습니다.')),
+          );
+          Navigator.pop(context, true); // Return true to indicate deletion
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('삭제 실패: $e')),
+          );
+        }
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final authProvider = Provider.of<AuthProvider>(context);
+    final currentUserId = authProvider.user?['id'];
+
     return Scaffold(
       backgroundColor: Colors.grey[50],
       appBar: AppBar(
@@ -32,6 +75,23 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
         elevation: 0,
         backgroundColor: Colors.white,
         foregroundColor: Colors.black,
+        actions: [
+          FutureBuilder<Map<String, dynamic>>(
+            future: _postFuture,
+            builder: (context, snapshot) {
+              if (snapshot.hasData) {
+                final post = snapshot.data!;
+                if (currentUserId != null && post['user_id'] == currentUserId) {
+                  return IconButton(
+                    icon: const Icon(Icons.delete_outline, color: Colors.red),
+                    onPressed: _deletePost,
+                  );
+                }
+              }
+              return const SizedBox.shrink();
+            },
+          ),
+        ],
       ),
       body: FutureBuilder<Map<String, dynamic>>(
         future: _postFuture,

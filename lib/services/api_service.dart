@@ -1,9 +1,11 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class ApiService {
   static const String baseUrl = 'http://localhost:8080/api';
+  static const _storage = FlutterSecureStorage();
 
   // [Helper] compute용 JSON 파싱 함수 (Top-level 혹은 static이어야 함)
   static Map<String, dynamic> _parseJson(String source) {
@@ -33,9 +35,16 @@ class ApiService {
     debugPrint('📤 Sending backtest request to: $url');
     debugPrint('Body: $body');
 
+    // 토큰이 있으면 헤더에 추가
+    final token = await _storage.read(key: 'jwt_token');
+    final headers = {'Content-Type': 'application/json'};
+    if (token != null) {
+      headers['Authorization'] = 'Bearer $token';
+    }
+
     final response = await http.post(
       url,
-      headers: {'Content-Type': 'application/json'},
+      headers: headers,
       body: body,
     );
 
@@ -51,6 +60,28 @@ class ApiService {
     } else {
       debugPrint('❌ Backtest failed. Body: ${response.body}');
       throw Exception('Failed to run backtest: ${response.body}');
+    }
+  }
+
+  // 백테스트 히스토리 조회
+  static Future<List<dynamic>> getBacktestHistory() async {
+    final url = Uri.parse('$baseUrl/backtest/history');
+    final token = await _storage.read(key: 'jwt_token');
+    
+    if (token == null) throw Exception('Not logged in');
+
+    final response = await http.get(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      throw Exception('Failed to load history: ${response.body}');
     }
   }
 

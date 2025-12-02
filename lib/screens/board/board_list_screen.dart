@@ -122,13 +122,16 @@ class _BoardListScreenState extends State<BoardListScreen> {
                     ),
                   ],
                 ),
-                onTap: () {
-                  Navigator.push(
+                onTap: () async {
+                  final result = await Navigator.push(
                     context,
                     MaterialPageRoute(
                       builder: (_) => PostDetailScreen(postId: post['id']),
                     ),
                   );
+                  if (result == true) {
+                    _refreshPosts();
+                  }
                 },
               );
             },

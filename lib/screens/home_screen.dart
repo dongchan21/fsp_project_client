@@ -3,10 +3,13 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../utils/format_utils.dart';
+import '../utils/date_utils.dart';
 import '../services/portfolio_provider.dart';
 import '../services/stock_search_service.dart';
 import '../providers/auth_provider.dart';
 import 'backtest_result_screen.dart';
+import 'backtest_history_screen.dart';
 import 'login_screen.dart';
 import 'board/board_list_screen.dart';
 
@@ -69,48 +72,6 @@ class _HomeScreenState extends State<HomeScreen> {
   });
 }
 
-  String _formatKoreanAmount(double amount) {
-    if (amount <= 0) return '0원';
-    final n = amount.round();
-    final eok = n ~/ 100000000; // 억
-    final man = (n % 100000000) ~/ 10000; // 만원
-    String out = '';
-    if (eok > 0) out += '${eok}억';
-    if (man > 0) {
-      if (out.isNotEmpty) out += ' ';
-      out += '${man}만원';
-    }
-    if (out.isEmpty) out = '0원';
-    if (out.endsWith('억')) out += '원';
-    return out;
-  }
-
-  // Compact: 150,000,000 => 1.5억, 12,000,000 => 1200만원, 1,234,000,000 => 12.34억
-  String _formatKoreanAmountCompact(double amount) {
-    if (amount <= 0) return '0원';
-    final n = amount.round();
-    final eok = n / 100000000.0; // 억 단위 실수
-    if (eok >= 1) {
-      // Show up to 2 decimals but trim trailing zeros
-      String s = eok.toStringAsFixed(eok >= 10 ? 2 : 2); // uniform 2 decimals
-      s = s.replaceAll(RegExp(r'\.0+'), '');
-      // Manual trim of trailing zeros and dot
-      while (s.contains('.') && (s.endsWith('0'))) {
-        s = s.substring(0, s.length - 1);
-      }
-      if (s.endsWith('.')) s = s.substring(0, s.length - 1);
-      return s + '억';
-    } else {
-      final man = n / 10000.0; // 만원 단위
-      String s = man.toStringAsFixed(man >= 100 ? 0 : (man >= 10 ? 1 : 2));
-      return s + '만원';
-    }
-  }
-
-  int _diffMonths(DateTime start, DateTime end) {
-    return (end.year - start.year) * 12 + (end.month - start.month) + 1; // inclusive month count
-  }
-
   @override
   void dispose() {
     for (final c in _symbolControllers) { c.dispose(); }
@@ -130,9 +91,19 @@ class _HomeScreenState extends State<HomeScreen> {
         appBar: AppBar(
           title: Row(
             children: [
-              const Text(
+              Image.asset(
+                'assets/logo.png',
+                height: 24,
+                errorBuilder: (context, error, stackTrace) => const Icon(Icons.bar_chart_rounded),
+              ),
+              const SizedBox(width: 8),
+              Text(
                 'AI 기반 백테스트 플랫폼',
-                style: TextStyle(fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey[600],
+                  fontWeight: FontWeight.w500,
+                ),
               ),
               const Spacer(),
               Expanded(
@@ -154,6 +125,16 @@ class _HomeScreenState extends State<HomeScreen> {
           backgroundColor: Theme.of(context).colorScheme.inversePrimary,
           actions: [
             if (authProvider.isLoggedIn) ...[
+              IconButton(
+                icon: const Icon(Icons.history),
+                tooltip: '백테스트 히스토리',
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const BacktestHistoryScreen()),
+                  );
+                },
+              ),
               Center(
                 child: Text(
                   '${authProvider.user?['nickname'] ?? '사용자'}님',
@@ -600,16 +581,16 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ],
               const SizedBox(height: 8),
-              Text('총액: ${_formatKoreanAmount(provider.initialCapital)}', style: const TextStyle(fontWeight: FontWeight.w600)),
+              Text('총액: ${formatKoreanAmount(provider.initialCapital)}', style: const TextStyle(fontWeight: FontWeight.w600)),
               if (provider.useDca) ...[
                 const SizedBox(height: 4),
-                Text('월 적립금: ${_formatKoreanAmount(provider.dcaAmount)}', style: const TextStyle(fontWeight: FontWeight.w600)),
+                Text('월 적립금: ${formatKoreanAmount(provider.dcaAmount)}', style: const TextStyle(fontWeight: FontWeight.w600)),
               ],
               const SizedBox(height: 4),
               Builder(builder: (_) {
-                final months = _diffMonths(provider.startDate, provider.endDate);
+                final months = diffMonths(provider.startDate, provider.endDate);
                 final totalInvested = provider.initialCapital + (provider.useDca ? provider.dcaAmount * months : 0);
-                final compact = _formatKoreanAmountCompact(totalInvested);
+                final compact = formatKoreanAmountCompact(totalInvested);
                 return Text('총 투자 규모 (기간 반영): $compact', style: const TextStyle(fontWeight: FontWeight.bold));
               }),
             ],
