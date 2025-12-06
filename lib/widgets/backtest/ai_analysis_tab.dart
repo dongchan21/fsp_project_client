@@ -38,6 +38,21 @@ class _AiAnalysisTabState extends State<AiAnalysisTab> {
     });
 
     try {
+      // [최적화] Provider에 미리 시작된 AI 분석 작업이 있다면 그 결과를 기다립니다.
+      if (widget.provider.aiAnalysisFuture != null) {
+        debugPrint('⚡ Using prefetched AI analysis...');
+        final result = await widget.provider.aiAnalysisFuture!;
+        
+        if (mounted) {
+          setState(() {
+            _score = result['score'];
+            _aiInsight = result['aiInsight'];
+          });
+        }
+        return;
+      }
+
+      // (Fallback) 프리페치된 작업이 없다면 직접 실행
       // 1. 성과 지표 요약 데이터 준비
       final summary = {
         'totalReturn': widget.result.totalReturn,
@@ -87,9 +102,11 @@ class _AiAnalysisTabState extends State<AiAnalysisTab> {
         _error = e.toString();
       });
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 

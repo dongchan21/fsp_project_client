@@ -6,12 +6,18 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 class BoardClientService {
   static final _storage = const FlutterSecureStorage();
   
-  static String get _baseUrl => dotenv.env['API_URL']?.replaceAll('/auth', '/board') ?? 'http://localhost:8080/api/board';
+  static String get _baseUrl => 'https://labourless-molly-jack.ngrok-free.dev/api/board';
 
   static Future<List<dynamic>> getPosts() async {
     // Ensure trailing slash for the list endpoint
     final url = _baseUrl.endsWith('/') ? _baseUrl : '$_baseUrl/';
-    final response = await http.get(Uri.parse(url));
+    final response = await http.get(
+      Uri.parse(url),
+      headers: {
+        'ngrok-skip-browser-warning': 'true',
+        'Content-Type': 'application/json',
+      },
+    );
 
     if (response.statusCode == 200) {
       return jsonDecode(response.body);
@@ -21,7 +27,13 @@ class BoardClientService {
   }
 
   static Future<Map<String, dynamic>> getPost(int id) async {
-    final response = await http.get(Uri.parse('$_baseUrl/$id'));
+    final response = await http.get(
+      Uri.parse('$_baseUrl/$id'),
+      headers: {
+        'ngrok-skip-browser-warning': 'true',
+        'Content-Type': 'application/json',
+      },
+    );
 
     if (response.statusCode == 200) {
       return jsonDecode(response.body);
@@ -42,6 +54,7 @@ class BoardClientService {
       headers: {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer $token',
+        'ngrok-skip-browser-warning': 'true',
       },
       body: jsonEncode({
         'title': title,

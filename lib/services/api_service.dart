@@ -4,7 +4,7 @@ import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class ApiService {
-  static const String baseUrl = 'http://localhost:8080/api';
+  static const String baseUrl = 'https://labourless-molly-jack.ngrok-free.dev/api';
   static const _storage = FlutterSecureStorage();
 
   // [Helper] compute용 JSON 파싱 함수 (Top-level 혹은 static이어야 함)
@@ -37,7 +37,10 @@ class ApiService {
 
     // 토큰이 있으면 헤더에 추가
     final token = await _storage.read(key: 'jwt_token');
-    final headers = {'Content-Type': 'application/json'};
+    final headers = {
+      'Content-Type': 'application/json',
+      'ngrok-skip-browser-warning': 'true',
+    };
     if (token != null) {
       headers['Authorization'] = 'Bearer $token';
     }
@@ -75,6 +78,7 @@ class ApiService {
       headers: {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer $token',
+        'ngrok-skip-browser-warning': 'true',
       },
     );
 
@@ -97,7 +101,10 @@ class ApiService {
 
     final response = await http.post(
       url,
-      headers: {'Content-Type': 'application/json'},
+      headers: {
+        'Content-Type': 'application/json',
+        'ngrok-skip-browser-warning': 'true',
+      },
       body: body,
     );
 
@@ -130,7 +137,10 @@ class ApiService {
 
     final response = await http.post(
       url,
-      headers: {'Content-Type': 'application/json'},
+      headers: {
+        'Content-Type': 'application/json',
+        'ngrok-skip-browser-warning': 'true',
+      },
       body: body,
     );
 

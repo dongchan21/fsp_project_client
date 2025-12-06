@@ -20,6 +20,9 @@ class PortfolioProvider with ChangeNotifier {
   BacktestResult? _result;
   bool _isLoading = false;
   String? _error;
+  
+  // AI 분석 프리페치용 Future
+  Future<Map<String, dynamic>>? _aiAnalysisFuture;
 
   // Getters
   List<String> get symbols => _symbols;
@@ -32,6 +35,7 @@ class PortfolioProvider with ChangeNotifier {
   BacktestResult? get result => _result;
   bool get isLoading => _isLoading;
   String? get error => _error;
+  Future<Map<String, dynamic>>? get aiAnalysisFuture => _aiAnalysisFuture;
 
   // Setters
   void updateSymbols(List<String> symbols) {
@@ -158,6 +162,11 @@ class PortfolioProvider with ChangeNotifier {
         // 파싱 실패 시 조용히 무시 (UI는 기존 값 유지)
       }
       _error = null;
+
+      // [AI 분석 프리페치 시작]
+      // 백테스트 결과가 나왔으므로, 사용자가 요청하기 전에 미리 AI 분석을 시작합니다.
+      _startAiAnalysisPrefetch();
+
     } catch (e) {
       _error = e.toString();
       _result = null;
@@ -165,5 +174,57 @@ class PortfolioProvider with ChangeNotifier {
       _isLoading = false;
       notifyListeners();
     }
+  }
+
+  void _startAiAnalysisPrefetch() {
+    if (_result == null) return;
+
+    _aiAnalysisFuture = Future(() async {
+      debugPrint('🚀 AI Analysis Prefetch Started...');
+      
+      // 1. 성과 지표 요약 데이터 준비
+      final summary = {
+        'totalReturn': _result!.totalReturn,
+        'annualizedReturn': _result!.annualizedReturn,
+        'volatility': _result!.volatility,
+        'sharpeRatio': _result!.sharpeRatio,
+        'maxDrawdown': _result!.maxDrawdown,
+        'annualReturn': _result!.annualizedReturn,
+        'mdd': _result!.maxDrawdown,
+        'sharpe': _result!.sharpeRatio,
+      };
+
+      // 2. 서버에 분석 요청 (점수 및 텍스트 생성)
+      final analysisResult = await ApiService.analyzeInsight(summary: summary);
+      
+      if (analysisResult.containsKey('error')) {
+        throw Exception(analysisResult['error']);
+      }
+
+      final score = analysisResult['score'];
+      final analysis = analysisResult['analysis'];
+
+      // 3. AI 인사이트 생성 요청
+      final portfolio = {
+        'symbols': _symbols,
+        'weights': _weights,
+      };
+
+      final response = await ApiService.generateAiInsight(
+        score: score,
+        analysis: analysis,
+        portfolio: portfolio,
+      );
+
+      if (response.containsKey('error')) {
+        throw Exception(response['error']);
+      }
+
+      debugPrint('✅ AI Analysis Prefetch Completed!');
+      return {
+        'score': score,
+        'aiInsight': response['aiInsight'],
+      };
+    });
   }
 }

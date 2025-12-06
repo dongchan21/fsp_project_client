@@ -12,13 +12,49 @@ class AnnualReturnsChart extends StatefulWidget {
 
 class _AnnualReturnsChartState extends State<AnnualReturnsChart> {
   final Color _portfolioColor = const Color(0xFF4E7CFE); // Royal Blue
-  final Color _benchmarkColor = const Color(0xFF00BFA5); // Teal/Emerald Green (Using Teal for benchmark here to match user request image style if possible, but user image has green for SPY. Let's stick to consistent colors or match image.)
-  // User image: Portfolio = Blue, SPY = Green/Teal.
-  // My previous chart: Portfolio = Blue, SPY = Amber.
-  // Let's match the user's image for this specific chart as requested: Portfolio (Blue), SPY (Green).
+  final Color _benchmarkColor = const Color(0xFF00BFA5); // Teal/Emerald Green
   
   final Color _barPortfolioColor = const Color(0xFF2962FF); // Deep Blue
   final Color _barBenchmarkColor = const Color(0xFF00E676); // Bright Green
+
+  // [최적화] 계산된 Y축 범위 캐싱
+  double _minY = 0;
+  double _maxY = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _calculateYRange();
+  }
+
+  @override
+  void didUpdateWidget(covariant AnnualReturnsChart oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.annualReturns != oldWidget.annualReturns) {
+      _calculateYRange();
+    }
+  }
+
+  void _calculateYRange() {
+    if (widget.annualReturns.isEmpty) {
+      _minY = 0;
+      _maxY = 0;
+      return;
+    }
+
+    double maxVal = 0;
+    double minVal = 0;
+    for (var item in widget.annualReturns) {
+      final p = (item['portfolio'] as num).toDouble();
+      final b = (item['benchmark'] as num).toDouble();
+      maxVal = max(maxVal, p);
+      maxVal = max(maxVal, b);
+      minVal = min(minVal, p);
+      minVal = min(minVal, b);
+    }
+    _maxY = (maxVal * 1.2).abs();
+    _minY = minVal < 0 ? minVal * 1.2 : 0;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -70,8 +106,8 @@ class _AnnualReturnsChartState extends State<AnnualReturnsChart> {
             child: BarChart(
               BarChartData(
                 alignment: BarChartAlignment.spaceAround,
-                maxY: _calculateMaxY(),
-                minY: _calculateMinY(),
+                maxY: _maxY,
+                minY: _minY,
                 barTouchData: BarTouchData(
                   touchTooltipData: BarTouchTooltipData(
                     getTooltipColor: (group) => Colors.blueGrey.shade900.withOpacity(0.9),
@@ -217,24 +253,6 @@ class _AnnualReturnsChartState extends State<AnnualReturnsChart> {
         ),
       ],
     );
-  }
-
-  double _calculateMaxY() {
-    double maxVal = 0;
-    for (var item in widget.annualReturns) {
-      maxVal = max(maxVal, (item['portfolio'] as num).toDouble());
-      maxVal = max(maxVal, (item['benchmark'] as num).toDouble());
-    }
-    return (maxVal * 1.2).abs(); // Add some padding
-  }
-
-  double _calculateMinY() {
-    double minVal = 0;
-    for (var item in widget.annualReturns) {
-      minVal = min(minVal, (item['portfolio'] as num).toDouble());
-      minVal = min(minVal, (item['benchmark'] as num).toDouble());
-    }
-    return minVal < 0 ? minVal * 1.2 : 0;
   }
   
   double max(double a, double b) => a > b ? a : b;

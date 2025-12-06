@@ -91,18 +91,37 @@ class _HomeScreenState extends State<HomeScreen> {
         appBar: AppBar(
           title: Row(
             children: [
-              Image.asset(
-                'assets/logo.png',
-                height: 24,
-                errorBuilder: (context, error, stackTrace) => const Icon(Icons.bar_chart_rounded),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                'AI 기반 백테스트 플랫폼',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.grey[600],
-                  fontWeight: FontWeight.w500,
+              Tooltip(
+                message: '첫 화면으로 돌아가기',
+                child: InkWell(
+                  onTap: () {
+                    setState(() {
+                      _showBacktestResult = false;
+                    });
+                  },
+                  borderRadius: BorderRadius.circular(8),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 8.0),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Image.asset(
+                          'assets/logo.png',
+                          height: 24,
+                          errorBuilder: (context, error, stackTrace) => const Icon(Icons.bar_chart_rounded),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'AI 기반 백테스트 플랫폼',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.black87,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ),
               const Spacer(),

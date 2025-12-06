@@ -23,72 +23,136 @@ class _PortfolioGrowthChartState extends State<PortfolioGrowthChart> {
   final Color _fillGradientStart = const Color(0xFF4E7CFE).withOpacity(0.25);
   final Color _fillGradientEnd = const Color(0xFF4E7CFE).withOpacity(0.0);
 
+  // [최적화] 가공된 전체 데이터 캐싱
+  late List<Map<String, dynamic>> _fullProcessedHistory;
+  // [최적화] 현재 선택된 기간의 차트 데이터 캐싱
+  List<Map<String, dynamic>> _filteredHistory = [];
+  double _minY = 0;
+  double _maxY = 0;
+  double _interval = 1;
+  double _xInterval = 1;
+
   @override
-  Widget build(BuildContext context) {
+  void initState() {
+    super.initState();
+    _processData();
+    _updateFilteredData();
+  }
+
+  @override
+  void didUpdateWidget(covariant PortfolioGrowthChart oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.result != oldWidget.result) {
+      _processData();
+      _updateFilteredData();
+    }
+  }
+
+  // 1단계: 전체 데이터 전처리 (원금 계산, 벤치마크 매칭) - 데이터 변경 시에만 실행
+  void _processData() {
     if (widget.result.history.isEmpty) {
-      return _buildEmptyState();
+      _fullProcessedHistory = [];
+      return;
     }
 
-    // 데이터 전처리 (원금 계산 및 벤치마크 준비)
     final initialCapital = (widget.result.initialCapital as num? ?? 0).toDouble();
     final dcaAmount = (widget.result.dcaAmount as num? ?? 0).toDouble();
     final originalHistory = widget.result.history as List<dynamic>;
     
-    // 벤치마크 데이터
     final benchmarkData = widget.result.benchmark;
     final List<dynamic> benchmarkHistory = benchmarkData != null 
         ? (benchmarkData['history'] as List<dynamic>) 
         : [];
 
-    final List<Map<String, dynamic>> calculatedHistory = [];
+    _fullProcessedHistory = [];
     for (int i = 0; i < originalHistory.length; i++) {
       final item = originalHistory[i];
       final double principal = initialCapital + (dcaAmount * (i + 1));
       
-      // 벤치마크 값 (인덱스 매칭)
       double? benchmarkValue;
       if (i < benchmarkHistory.length) {
         benchmarkValue = (benchmarkHistory[i]['value'] as num).toDouble();
       }
 
-      calculatedHistory.add({
+      _fullProcessedHistory.add({
         'date': item['date'],
         'value': item['value'],
         'principal': principal,
         'benchmarkValue': benchmarkValue,
       });
     }
+  }
 
-    // 1. 기간 필터링
-    final filteredHistory = _filterHistory(calculatedHistory);
-    if (filteredHistory.isEmpty) return _buildEmptyState();
+  // 2단계: 기간 필터링 및 스케일 계산 - 기간 변경 시에만 실행
+  void _updateFilteredData() {
+    if (_fullProcessedHistory.isEmpty) {
+      _filteredHistory = [];
+      return;
+    }
 
-    // 2. 데이터 준비
-    final values =
-        filteredHistory.map((e) => (e['value'] as num).toDouble()).toList();
-    final principals =
-        filteredHistory.map((e) => (e['principal'] as num).toDouble()).toList();
-    final benchmarkValues = filteredHistory
+    // 기간 필터링
+    if (_selectedPeriod == 'MAX') {
+      _filteredHistory = _fullProcessedHistory;
+    } else {
+      final lastDate = DateTime.parse(_fullProcessedHistory.last['date']);
+      DateTime startDate;
+      switch (_selectedPeriod) {
+        case '1년':
+          startDate = lastDate.subtract(const Duration(days: 365));
+          break;
+        case '3년':
+          startDate = lastDate.subtract(const Duration(days: 365 * 3));
+          break;
+        case '5년':
+          startDate = lastDate.subtract(const Duration(days: 365 * 5));
+          break;
+        default:
+          startDate = DateTime(2000);
+      }
+      _filteredHistory = _fullProcessedHistory
+          .where((item) => DateTime.parse(item['date']).compareTo(startDate) >= 0)
+          .toList();
+    }
+
+    if (_filteredHistory.isEmpty) return;
+
+    // Y축 스케일 계산
+    final values = _filteredHistory.map((e) => (e['value'] as num).toDouble());
+    final principals = _filteredHistory.map((e) => (e['principal'] as num).toDouble());
+    final benchmarkValues = _filteredHistory
         .map((e) => e['benchmarkValue'] as double?)
         .where((v) => v != null)
-        .map((v) => v!)
-        .toList();
+        .map((v) => v!);
 
-    // Y축 범위 계산
     final allValues = [...values, ...principals, ...benchmarkValues];
-    double dataMin = allValues.reduce((a, b) => min(a, b));
-    double dataMax = allValues.reduce((a, b) => max(a, b));
+    if (allValues.isEmpty) return;
 
-    // Nice Scale 계산
+    double dataMin = allValues.reduce(min);
+    double dataMax = allValues.reduce(max);
+
     final niceScale = _calculateNiceScale(dataMin, dataMax, 5);
-    final double minY = niceScale.min;
-    final double maxY = niceScale.max;
-    final double interval = niceScale.step;
+    _minY = niceScale.min;
+    _maxY = niceScale.max;
+    _interval = niceScale.step;
 
-    // X축 데이터 포인트
-    final double lastIndex = (filteredHistory.length - 1).toDouble();
-    final double xInterval =
-        lastIndex == 0 ? 1 : lastIndex / 4;
+    final double lastIndex = (_filteredHistory.length - 1).toDouble();
+    _xInterval = lastIndex == 0 ? 1 : lastIndex / 4;
+  }
+
+  void _onPeriodChanged(String period) {
+    setState(() {
+      _selectedPeriod = period;
+      _updateFilteredData();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_filteredHistory.isEmpty) {
+      return _buildEmptyState();
+    }
+
+    final double lastIndex = (_filteredHistory.length - 1).toDouble();
 
     return Container(
       decoration: BoxDecoration(
@@ -163,7 +227,7 @@ class _PortfolioGrowthChartState extends State<PortfolioGrowthChart> {
                     children: _periods.map((period) {
                       final isSelected = _selectedPeriod == period;
                       return GestureDetector(
-                        onTap: () => setState(() => _selectedPeriod = period),
+                        onTap: () => _onPeriodChanged(period),
                         child: AnimatedContainer(
                           duration: const Duration(milliseconds: 200),
                           padding: const EdgeInsets.symmetric(
@@ -206,7 +270,7 @@ class _PortfolioGrowthChartState extends State<PortfolioGrowthChart> {
               children: [
                 _buildLegendItem('평가금액', _valueColor),
                 const SizedBox(width: 12),
-                if (benchmarkValues.isNotEmpty) ...[
+                if (_filteredHistory.any((e) => e['benchmarkValue'] != null)) ...[
                   _buildLegendItem('S&P 500', _benchmarkColor),
                   const SizedBox(width: 12),
                 ],
@@ -223,8 +287,8 @@ class _PortfolioGrowthChartState extends State<PortfolioGrowthChart> {
                 LineChartData(
                   minX: 0,
                   maxX: lastIndex,
-                  minY: minY,
-                  maxY: maxY,
+                  minY: _minY,
+                  maxY: _maxY,
 
                   lineTouchData: LineTouchData(
                     handleBuiltInTouches: true,
@@ -242,9 +306,9 @@ class _PortfolioGrowthChartState extends State<PortfolioGrowthChart> {
                         
                         return touchedSpots.map((spot) {
                           final index = spot.x.toInt();
-                          if (index < 0 || index >= filteredHistory.length) return null;
+                          if (index < 0 || index >= _filteredHistory.length) return null;
 
-                          final data = filteredHistory[index];
+                          final data = _filteredHistory[index];
                           final currencyFormat = NumberFormat('#,###');
                           final principal = (data['principal'] as num).toDouble();
                           
@@ -330,7 +394,7 @@ class _PortfolioGrowthChartState extends State<PortfolioGrowthChart> {
                   gridData: FlGridData(
                     show: true,
                     drawVerticalLine: false,
-                    horizontalInterval: interval,
+                    horizontalInterval: _interval,
                     getDrawingHorizontalLine: (value) {
                       return FlLine(
                         color: Colors.grey[200],
@@ -349,9 +413,9 @@ class _PortfolioGrowthChartState extends State<PortfolioGrowthChart> {
                       sideTitles: SideTitles(
                         showTitles: true,
                         reservedSize: 50,
-                        interval: interval,
+                        interval: _interval,
                         getTitlesWidget: (value, meta) {
-                          if (value == minY && minY != 0) {
+                          if (value == _minY && _minY != 0) {
                             return const SizedBox.shrink();
                           }
                           return Text(
@@ -369,15 +433,15 @@ class _PortfolioGrowthChartState extends State<PortfolioGrowthChart> {
                       sideTitles: SideTitles(
                         showTitles: true,
                         reservedSize: 30,
-                        interval: xInterval == 0 ? 1 : xInterval,
+                        interval: _xInterval == 0 ? 1 : _xInterval,
                         getTitlesWidget: (value, meta) {
                           final idx = value.round();
-                          if (idx < 0 || idx >= filteredHistory.length) {
+                          if (idx < 0 || idx >= _filteredHistory.length) {
                             return const SizedBox.shrink();
                           }
                           String text = '';
                           try {
-                            final dateStr = filteredHistory[idx]['date'];
+                            final dateStr = _filteredHistory[idx]['date'];
                             final dt = DateTime.parse(dateStr);
                             text = DateFormat('yy.MM.dd').format(dt);
                           } catch (_) {}
@@ -400,7 +464,7 @@ class _PortfolioGrowthChartState extends State<PortfolioGrowthChart> {
                   lineBarsData: [
                     // 1. 원금 그래프
                     LineChartBarData(
-                      spots: filteredHistory.asMap().entries.map((entry) {
+                      spots: _filteredHistory.asMap().entries.map((entry) {
                         final val = (entry.value['principal'] as num).toDouble();
                         return FlSpot(entry.key.toDouble(), val);
                       }).toList(),
@@ -413,9 +477,9 @@ class _PortfolioGrowthChartState extends State<PortfolioGrowthChart> {
                     ),
 
                     // 2. 벤치마크 그래프 (추가)
-                    if (benchmarkValues.isNotEmpty)
+                    if (_filteredHistory.any((e) => e['benchmarkValue'] != null))
                       LineChartBarData(
-                        spots: filteredHistory.asMap().entries.map((entry) {
+                        spots: _filteredHistory.asMap().entries.map((entry) {
                           final val = entry.value['benchmarkValue'] as double? ?? 0.0;
                           return FlSpot(entry.key.toDouble(), val);
                         }).toList(),
@@ -428,7 +492,7 @@ class _PortfolioGrowthChartState extends State<PortfolioGrowthChart> {
 
                     // 3. 평가금액 그래프
                     LineChartBarData(
-                      spots: filteredHistory.asMap().entries.map((entry) {
+                      spots: _filteredHistory.asMap().entries.map((entry) {
                         final val = (entry.value['value'] as num).toDouble();
                         return FlSpot(entry.key.toDouble(), val);
                       }).toList(),
@@ -488,28 +552,6 @@ class _PortfolioGrowthChartState extends State<PortfolioGrowthChart> {
           color: Colors.white, borderRadius: BorderRadius.circular(20)),
       child: const Center(child: Text('데이터가 없습니다.')),
     );
-  }
-
-  List<Map<String, dynamic>> _filterHistory(List<Map<String, dynamic>> fullHistory) {
-    if (_selectedPeriod == 'MAX') return fullHistory;
-    final lastDate = DateTime.parse(fullHistory.last['date']);
-    DateTime startDate;
-    switch (_selectedPeriod) {
-      case '1년':
-        startDate = lastDate.subtract(const Duration(days: 365));
-        break;
-      case '3년':
-        startDate = lastDate.subtract(const Duration(days: 365 * 3));
-        break;
-      case '5년':
-        startDate = lastDate.subtract(const Duration(days: 365 * 5));
-        break;
-      default:
-        return fullHistory;
-    }
-    return fullHistory
-        .where((item) => DateTime.parse(item['date']).compareTo(startDate) >= 0)
-        .toList();
   }
 
   _NiceScale _calculateNiceScale(double min, double max, int tickCount) {

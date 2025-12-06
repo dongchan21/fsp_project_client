@@ -8,12 +8,15 @@ class AuthClientService {
   
   // 서버 URL (로컬호스트의 경우 에뮬레이터는 10.0.2.2, 실제 기기는 IP, 웹/데스크탑은 localhost)
   // .env에서 가져오거나 기본값 사용
-  static String get _baseUrl => dotenv.env['API_URL'] ?? 'http://localhost:8080/api/auth';
+  static String get _baseUrl => dotenv.env['API_URL'] ?? 'https://labourless-molly-jack.ngrok-free.dev/api/auth';
 
   static Future<Map<String, dynamic>> signup(String email, String password, String nickname) async {
     final response = await http.post(
       Uri.parse('$_baseUrl/signup'),
-      headers: {'Content-Type': 'application/json'},
+      headers: {
+        'Content-Type': 'application/json',
+        'ngrok-skip-browser-warning': 'true',
+      },
       body: jsonEncode({
         'email': email,
         'password': password,
@@ -31,7 +34,10 @@ class AuthClientService {
   static Future<Map<String, dynamic>> login(String email, String password) async {
     final response = await http.post(
       Uri.parse('$_baseUrl/login'),
-      headers: {'Content-Type': 'application/json'},
+      headers: {
+        'Content-Type': 'application/json',
+        'ngrok-skip-browser-warning': 'true',
+      },
       body: jsonEncode({
         'email': email,
         'password': password,
