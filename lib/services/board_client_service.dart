@@ -9,7 +9,7 @@ class BoardClientService {
   static String get _baseUrl => 'https://labourless-molly-jack.ngrok-free.dev/api/board';
 
   static Future<List<dynamic>> getPosts() async {
-    // Ensure trailing slash for the list endpoint
+    // 목록 엔드포인트에 후행 슬래시 보장
     final url = _baseUrl.endsWith('/') ? _baseUrl : '$_baseUrl/';
     final response = await http.get(
       Uri.parse(url),
@@ -46,7 +46,7 @@ class BoardClientService {
     final token = await _storage.read(key: 'jwt_token');
     if (token == null) throw Exception('Not logged in');
 
-    // Ensure trailing slash for the create endpoint
+    // 생성 엔드포인트에 후행 슬래시 보장
     final url = _baseUrl.endsWith('/') ? _baseUrl : '$_baseUrl/';
 
     final response = await http.post(

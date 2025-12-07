@@ -20,10 +20,10 @@ String formatKoreanAmountCompact(double amount) {
   final n = amount.round();
   final eok = n / 100000000.0; // 억 단위 실수
   if (eok >= 1) {
-    // Show up to 2 decimals but trim trailing zeros
-    String s = eok.toStringAsFixed(eok >= 10 ? 2 : 2); // uniform 2 decimals
+    // 소숫점 2자리까지 표시
+    String s = eok.toStringAsFixed(eok >= 10 ? 2 : 2); // 2자리 고정
     s = s.replaceAll(RegExp(r'\.0+'), '');
-    // Manual trim of trailing zeros and dot
+    // 끝에 불필요한 0 제거
     while (s.contains('.') && (s.endsWith('0'))) {
       s = s.substring(0, s.length - 1);
     }

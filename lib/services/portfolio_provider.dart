@@ -78,7 +78,7 @@ class PortfolioProvider with ChangeNotifier {
   }
 
   void addStock(String symbol, double weight) {
-    // Add then equalize all weights to sum ≈ 1.0
+    // 추가 후 모든 비중을 합이 약 1.0이 되도록 균등화
     _symbols.add(symbol);
     _weights.add(weight);
     if (_symbols.isNotEmpty) {
@@ -122,7 +122,7 @@ class PortfolioProvider with ChangeNotifier {
     }
   }
 
-  // Run backtest
+  // 백테스트 실행
   Future<void> runBacktest() async {
     _isLoading = true;
     _error = null;
